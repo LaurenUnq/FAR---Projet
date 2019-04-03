@@ -1,12 +1,12 @@
 # include <stdio.h>
 # include <sys/types.h>
-# include <netdb.h> /* gethostbyname */
+# include <netdb.h>
 # include <arpa/inet.h>
 # include <sys/socket.h>
-# include <unistd.h> /* close */
+# include <unistd.h>
 # include <stdlib.h>
 # include <string.h>
-#include <time.h>
+# include <time.h>
 
 // Alias pour plus de clarté
 #define INVALID_SOCKET -1
@@ -18,39 +18,44 @@ typedef int SOCKET;
 
 /*
  * func envoyerMessage : Socket, char[] -> int
+ * Envoie a partir d'un socket, une chaine de charactère un message
  * Renvoie 0 si aucune Erreur
  * Renvoie -1 si erreur
  * Renvoie -2 si chaine trop longue
  */
 int envoyerMessage(SOCKET *dSClient,char *buffer) {
-    if (strlen(buffer) > 1024) {
+    if (strlen(buffer) > TAILLE_BUFFER) {
         return -2;
     }
     // + d'infos sur send()  : https://man.developpez.com/man2/send/
-    if (send(*dSClient, buffer, sizeof(buffer), 0) < 0) {
+    if (send(*dSClient, buffer, strlen(buffer), 0) < 0) {
         return -1;
     } else {
         return 0;
     }
 }
-
-int recevoirMessage(SOCKET *dSClient,char *buffer) {
-    // + D'info sur recv() : https://man.developpez.com/man2/recv/
-    return recv(*dSClient, buffer, sizeof(buffer)-1, 0);
-}
+/*
+ * func recevoirMessage : Socket, char[],
+ * Envoie a partir d'un socket, une chaine de charactère et sa taille  un message
+ * Renvoie 0 si aucune Erreur
+ * Renvoie -1 si erreur
+ * Renvoie -2 si chaine trop longue
+ */
+ int recevoirMessage(SOCKET *dSClient,char *buffer) {
+     int n = recv(*dSClient, buffer, sizeof(buffer)-1, 0);
+     if (n < 0) {
+         return -1;
+     } else {
+         buffer[n] = '\0';
+         return 0;
+     }
+ }
 
 void delay(int i)    /*Pause l'application pour i seconds*/
 {
     clock_t start,end;
     start=clock();
     while(((end=clock())-start)<=i*CLOCKS_PER_SEC);
-}
-
-void attendre(int i) {
-    for (i=5; i > 0; i--) {
-        printf("Début dans %d secondes\n", i);
-        delay(1);
-    }
 }
 
 int main (int argc, const char* argv[] ) {
@@ -101,33 +106,44 @@ int main (int argc, const char* argv[] ) {
     printf("En attente du client 1\n");
     SOCKET dSClient1 = accept(dSServer, (struct sockaddr *)&adrClient1, &lg);
     printf("Socket client 1 ouvert\n");
-    printf("Envoie numéro au client 1\n");
-    if (envoyerMessage(&dSClient1, "1") < 0) {
-        printf("Erreur fatale client1\n");
+    char repServ[3] = "1";
+    if (envoyerMessage(&dSClient1, repServ) < 0) {
+        printf("Erreur fatale client 1\n");
+    } else {
+        printf("Numéro envoyé au client 1\n");
     }
+
     // Attente du client 2
     struct sockaddr_in adrClient2;
     printf("En attente du client 2\n");
     SOCKET dSClient2 = accept(dSServer, (struct sockaddr *)&adrClient2, &lg);
     printf("Socket client 2 ouvert\n");
-    printf("Envoie numéro au client 2\n");
-    if (envoyerMessage(&dSClient2, "2") < 0) {
-        printf("Erreur fatale client2\n");
+    strcpy(repServ, "2");
+    if (envoyerMessage(&dSClient2, repServ) < 0) {
+        printf("Erreur fatale client 2\n");
+    } else {
+        printf("Numéro envoyé au client 2\n");
     }
-    // Attend 5 seconde avant le début
-    attendre(5);
 
     // Envoie Ok aux deux clients
-    if (envoyerMessage(&dSClient1, "ok") < 0) {
+    delay(1);
+    strcpy(repServ, "ok");
+    res = envoyerMessage(&dSClient1, repServ);
+    if (res < 0) {
         printf("Erreur fatale client1\n");
+    } else {
+        printf("ok envoyé au client 1\n");
     }
-
-    if (envoyerMessage(&dSClient2, "ok") < 0) {
+    delay(1);
+    res = envoyerMessage(&dSClient2, repServ);
+    if (res < 0) {
         printf("Erreur fatale client2\n");
+    } else {
+        printf("ok envoyé au client 2\n");
     }
 
 
-    while(strcmp(buffer, "fin") != 0) {
+    while ( strcmp( buffer, "fin" ) != 0){
         printf("En attente du message du client 1 pour le client 2");
         // Reception du message du client 1 pour le client 2
         res = recevoirMessage(&dSClient1, buffer);
