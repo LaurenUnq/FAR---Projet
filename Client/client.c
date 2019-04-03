@@ -5,90 +5,151 @@
 #include <sys/socket.h>
 #include <stdlib.h>
 #include <string.h>
+
+// Alias pour plus de clarté
+#define INVALID_SOCKET -1
+#define closesocket(s) close(s)
+typedef int SOCKET;
+
+// Taille du buffer
+#define TAILLE_BUFFER 1024
+
+
+/*
+ *  func envoyerMessage : Socket, char[] -> int
+ *  Renvoie 0 si aucune Erreur
+ *  Renvoie -1 si erreur
+ *  Renvoie -2 si chaine trop longue
+ */
+int envoyerMessage(SOCKET *dSClient,char *buffer) {
+    if (strlen(buffer) > 1024) {
+        return -2;
+    }
+    // + d'infos sur send()  : https://man.developpez.com/man2/send/
+    if (send(*dSClient, buffer, sizeof(buffer), 0) < 0) {
+        return -1;
+    } else {
+        return 0;
+    }
+}
+
+int recevoirMessage(SOCKET *dSClient,char *buffer) {
+    return recv(*dSClient, buffer, sizeof(buffer)-1, 0);
+}
+
+void ecrireMessage(char *msg) {
+    fgets(msg, TAILLE_BUFFER, stdin);
+    int lenMsg = strlen(msg);
+    // fgets va ajouter '\n' en fin de ligne, je le remplace donc par '\0'
+    msg[(lenMsg - 1)] = '\0';
+}
+
 //ici on fait entrer des message à l utilisateur jusqu'à ce qu'il
 //decide d'exit
 
-//on met l adresse du serveur 
+
+//on met l adresse du serveur
 //- pour le tp, comme on crée un serveur, on met l'adresse de notre machine
-//on lance ensuite le serveur, puis on lance le client et ça fonctionne 
+//on lance ensuite le serveur, puis on lance le client et ça fonctionne
 
 int main () {
-    //Definition du protole
-    int dS=socket(PF_INET,SOCK_STREAM,0);
+    //Definition de l'IP du serveur
+    char ipServ[15] = "127.0.0.1";
+    // Variable de gestion d'erreur
+    int res;
+    // Création du buffer pour l'envoie/reception de message
+    char buffer[TAILLE_BUFFER] = "empty";
+    // Variable numClient pour stocker le numéro du client
+    char numClient[2];
 
-    //Connexion à un serveur
-    struct sockaddr_in adServ;
-    int res; 
-    adServ.sin_family = AF_INET;
-    adServ.sin_port = htons(44573); //on rentre le port du serv
-    //Attention, le dernier chiffre de l'adresse correspond à celui 
-    //de la machine sur laquelle on est !!    
-    //à changer si on change de machine
-    res = inet_pton(AF_INET,"162.38.111.95",&(adServ.sin_addr));
-
+    //Definition du protole (TCP)
+    SOCKET dSClient = socket(PF_INET,SOCK_STREAM,0);
+    // Vérification du bon déroulement de la création du Socket
+    if (dSClient == INVALID_SOCKET) {
+        printf("erreur lors de la création du socket Client\n");
+    }
+    //Definition des paramètres du serveur
+    struct sockaddr_in adrServ;
+    adrServ.sin_family = AF_INET;
+    adrServ.sin_port = htons(44573); // Définition du port du serveur
+    // inet_pton() convertis une chaine de char en IP comprehensible pour le programme
+    res = inet_pton(AF_INET, ipServ, &(adrServ.sin_addr));
     socklen_t lgA = sizeof(struct sockaddr_in);
-    res = connect(dS, (struct sockaddr *) &adServ, lgA);
-
-
-    char msg[1024]; // ce que l'utilisateur va entrer 32 caracteres sans le caract. de fin de chaine
-    char depart;
-    char NumClient; // Client 1 ou client 2
-    
-    //Envoi d'un message
+    // Connexion au serveur
+    res = connect(dSClient, (struct sockaddr *) &adrServ, lgA);
+    // Vérification du bon déroulement de la connexion
     if (res != -1){
         printf("La connexion a été établie \n");
     }
     else {
         printf("La connexion n'a pas fonctionnée \n");
     }
-
     //Obtenir le numero du client
-    recv(dS, NumClient, 1024,0);
-    printf("Votre numero de Client est : %s \n ",NumClient);
+    res = recevoirMessage(&dSClient, numClient);
+    if (res < 0) {
+        printf("Echec de la reception du numéro client\n");
+    } else {
+        printf("Votre numero de Client est : %s \n ",numClient);
+    }
 
-    //attente de l'accord du serveur pour commencer
+    // Attente de l'accord du serveur pour commencer
     printf("Veuillez attendre la confirmation du seveur pour commencer ... \n");
-    recv(dS, depart, 1024,0);
-    while( strcmp(depart, "ok" ) != 0) {
+    while( strcmp(buffer, "ok" ) != 0) {
         //On attend ...
-        recv(dS, depart, 1024,0);
+        res = recevoirMessage(&dSClient, buffer);
     }
     printf("Vous pouvez commencer \n");
 
     //Debut de la boucle d'action read/write ...
     printf("Pour mettre fin à la connexion, tapez fin \n");
-    while ( strcmp( msg, "fin" ) != 0){
+    while ( strcmp( buffer, "fin" ) != 0){
 
         //Cas du client 1
-        if( strcmp(NumClient, "1" )==0 )  {
-            printf("Quel message voulez-vous envoyer au serveur ? \n");
-            scanf("%s",msg);
-            printf("Votre message est : %s  \n",msg);
-            send(dS, msg, 1024, 0); //Le 1024 est la taille possible du message
-            printf("Le message %s a bien été envoyé \n",msg);
+        if( strcmp(numClient, "1" ) == 0 )  {
+            printf("Quel message voulez-vous envoyer au client 2 ? \n");
+            ecrireMessage(buffer);
+            printf("Votre message est : %s  \n",buffer);
+            res = envoyerMessage(&dSClient, buffer);
+            if (res < 0) {
+                printf("Echec de l'envoir du message au client 2");
+            } else {
+                printf("Le message a bien été envoyé \n");
+            }
 
-            printf("Vous allez maintenant lire ... \n");
-            recv(dS, msg, 1024,0);
-            printf("La réponse du serveur est : %s \n", msg);
-
+            printf("En attente du message du client 2 ... \n");
+            res = recevoirMessage(&dSClient, buffer);
+            if (res < 0) {
+                printf("Echec lord de la reception du message du client 2\n");
+            } else {
+                printf("Message du client 2 %s \n", buffer);
+            }
         }
 
         //Cas du client 2
-        if( strcmp(NumClient, "2" )==0 )  {
-            printf("Vous allez maintenant lire ... \n");
-            recv(dS, msg, 1024,0);
-            printf("La réponse du serveur est : %s \n", msg);
+        if( strcmp(numClient, "2" ) == 0 )  {
+            printf("En attente du message du client 1 ... \n");
+            res = recevoirMessage(&dSClient, buffer);
+            if (res < 0) {
+                printf("Echec lord de la reception du message du client 2\n");
+            } else {
+                printf("Message du client 1 %s \n", buffer);
+            }
 
-            printf("Quel message voulez-vous envoyer au serveur ? \n");
-            scanf("%s",msg);
-            printf("Votre message est : %s  \n",msg);
-            send(dS, msg, 1024, 0); //Le 1024 est la taille possible du message
-            printf("Le message %s a bien été envoyé \n",msg);
+
+            printf("Quel message voulez-vous envoyer au client 1 ? \n");
+            ecrireMessage(buffer);
+            printf("Votre message est : %s  \n",buffer);
+            envoyerMessage(&dSClient, buffer);
+            if (res < 0) {
+                printf("Echec de l'envoir du message au client 1");
+            } else {
+                printf("Le message a bien été envoyé \n");
+            }
         }
 
-        printf("\n");
+        printf("\n\n");
     }
-    
+
     return 0;
-    
+
 }
