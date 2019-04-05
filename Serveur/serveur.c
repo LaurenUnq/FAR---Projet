@@ -23,12 +23,12 @@ typedef int SOCKET;
  * Renvoie -1 si erreur
  * Renvoie -2 si chaine trop longue
  */
-int envoyerMessage(SOCKET *dSClient,char *buffer) {
+int envoyerMessage(int dSClient,char *buffer) {
     if (strlen(buffer) > TAILLE_BUFFER) {
         return -2;
     }
     // + d'infos sur send()  : https://man.developpez.com/man2/send/
-    if (send(*dSClient, buffer, strlen(buffer), 0) < 0) {
+    if (send(dSClient, buffer, strlen(buffer)+1, 0) < 0) {
         return -1;
     } else {
         return 0;
@@ -41,8 +41,9 @@ int envoyerMessage(SOCKET *dSClient,char *buffer) {
  * Renvoie -1 si erreur
  * Renvoie -2 si chaine trop longue
  */
- int recevoirMessage(SOCKET *dSClient,char *buffer) {
-     int n = recv(*dSClient, buffer, sizeof(buffer)-1, 0);
+ int recevoirMessage(int dSClient,char *buffer) {
+     printf("En attente du message du client 1 pour le client 2");
+     int n = recv(dSClient, buffer, TAILLE_BUFFER-1, 0);
      if (n < 0) {
          return -1;
      } else {
@@ -82,9 +83,10 @@ int main (int argc, const char* argv[] ) {
      * };
      */
     struct sockaddr_in adServ;
+    socklen_t lg = sizeof(struct sockaddr_in);
     adServ.sin_family = AF_INET ;
     adServ.sin_addr.s_addr = INADDR_ANY ;
-    adServ.sin_port = htons(44573);
+    adServ.sin_port = htons(0);
 
     // bind lie un socket avec une structure sockaddr.
     // + D'info sur bind() : https://man.developpez.com/man2/bind/
@@ -94,20 +96,22 @@ int main (int argc, const char* argv[] ) {
     // + D'info sur listen : https://man.developpez.com/man2/listen/
     int nbrConnexionMax = 2;
     int l = listen(dSServer, nbrConnexionMax);
-
+    getsockname(dSServer, (struct sockaddr*) &adServ, &lg);
+    printf("Ip du Serveur : %s\n", inet_ntoa(adServ.sin_addr));
+    printf("Port du serveur : %d.\n", ntohs(adServ.sin_port));
     // Variable servant a la vérification des retour d'erreur
     int res;
 
     // Buffer servant à l'envoie et la reception de message
     char buffer[TAILLE_BUFFER] = "empty";
     // Init
-    socklen_t lg = sizeof(struct sockaddr_in);
+
     struct sockaddr_in adrClient1;
     printf("En attente du client 1\n");
     SOCKET dSClient1 = accept(dSServer, (struct sockaddr *)&adrClient1, &lg);
     printf("Socket client 1 ouvert\n");
     char repServ[3] = "1";
-    if (envoyerMessage(&dSClient1, repServ) < 0) {
+    if (envoyerMessage(dSClient1, repServ) < 0) {
         printf("Erreur fatale client 1\n");
     } else {
         printf("Numéro envoyé au client 1\n");
@@ -119,7 +123,7 @@ int main (int argc, const char* argv[] ) {
     SOCKET dSClient2 = accept(dSServer, (struct sockaddr *)&adrClient2, &lg);
     printf("Socket client 2 ouvert\n");
     strcpy(repServ, "2");
-    if (envoyerMessage(&dSClient2, repServ) < 0) {
+    if (envoyerMessage(dSClient2, repServ) < 0) {
         printf("Erreur fatale client 2\n");
     } else {
         printf("Numéro envoyé au client 2\n");
@@ -128,31 +132,40 @@ int main (int argc, const char* argv[] ) {
     // Envoie Ok aux deux clients
     delay(1);
     strcpy(repServ, "ok");
-    res = envoyerMessage(&dSClient1, repServ);
-    if (res < 0) {
-        printf("Erreur fatale client1\n");
-    } else {
+    res = envoyerMessage(dSClient1, repServ);
+    //if (res < 0) {
+    //    printf("Erreur fatale client1\n");
+    //} else {
         printf("ok envoyé au client 1\n");
-    }
+    //}
     delay(1);
-    res = envoyerMessage(&dSClient2, repServ);
-    if (res < 0) {
-        printf("Erreur fatale client2\n");
-    } else {
+    res = envoyerMessage(dSClient2, repServ);
+    //if (res < 0) {
+    //    printf("Erreur fatale client2\n");
+    //} else {
         printf("ok envoyé au client 2\n");
-    }
-
+    //}
+    printf("Etape 1");
+    char test[256];
+    printf("Etape 2");
+    res = recevoirMessage(dSClient1, test);
+    printf("Etape 3");
+    printf("Message du client 1 : %s", test);
+    res = recevoirMessage(dSClient2, test);
+    printf("Message du client 2 : %s", test);
 
     while ( strcmp( buffer, "fin" ) != 0){
-        printf("En attente du message du client 1 pour le client 2");
         // Reception du message du client 1 pour le client 2
-        res = recevoirMessage(&dSClient1, buffer);
+        printf("Attente du message du client 1 pour le Client 2");
+        res = recevoirMessage(dSClient1, buffer);
+        printf("Message du client 1 : %s", buffer);
+        /*
         if (res < 0) {
             printf("Erreur lors de la reception du message du client 1\n");
             return -1;
         } else {
             printf("Message du client 1 : %s", buffer);
-            res = envoyerMessage(&dSClient2, buffer);
+            res = envoyerMessage(dSClient2, buffer);
             if (res < 0) {
                 printf("Echec de l'envoie du message au client 2");
             } else {
@@ -162,20 +175,22 @@ int main (int argc, const char* argv[] ) {
 
         printf("En attente du message du client 2 pour le client 1");
         // Reception du message du client 1 pour le client 2
-        res = recevoirMessage(&dSClient2, buffer);
+        res = recevoirMessage(dSClient2, buffer);
         if (res < 0) {
             printf("Erreur lors de la reception du message du client 2\n");
             return -1;
         } else {
             printf("Message du client 2 : %s", buffer);
-            res = envoyerMessage(&dSClient2, buffer);
+            res = envoyerMessage(dSClient2, buffer);
             if (res < 0) {
                 printf("Echec de l'envoie du message au client 1");
             } else {
                 printf("Message envoyé au client 1");
             }
         }
+        */
     }
+    /*
     printf("Fin du serveur\n");
     // + D'info close() : https://man.developpez.com/man2/close/
     closesocket(dSClient1);
@@ -183,5 +198,6 @@ int main (int argc, const char* argv[] ) {
     printf("Socket clients fermés\n\n");
     closesocket(dSServer);
     //
+    */
     return 0;
 }

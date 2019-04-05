@@ -24,12 +24,12 @@ typedef int SOCKET;
  * Renvoie -1 si erreur
  * Renvoie -2 si chaine trop longue
  */
-int envoyerMessage(SOCKET *dSClient,char *buffer) {
+int envoyerMessage(int dSClient,char *buffer) {
     if (strlen(buffer) > TAILLE_BUFFER) {
         return -2;
     }
     // + d'infos sur send()  : https://man.developpez.com/man2/send/
-    if (send(*dSClient, buffer, strlen(buffer), 0) < 0) {
+    if (send(dSClient, buffer, strlen(buffer), 0) < 0) {
         return -1;
     } else {
         return 0;
@@ -42,8 +42,8 @@ int envoyerMessage(SOCKET *dSClient,char *buffer) {
  * Renvoie -1 si erreur
  * Renvoie -2 si chaine trop longue
  */
-int recevoirMessage(SOCKET *dSClient,char *buffer) {
-    int n = recv(*dSClient, buffer, sizeof(buffer), 0);
+int recevoirMessage(int dSClient,char *buffer) {
+    int n = recv(dSClient, buffer, sizeof(buffer), 0);
     if (n < 0) {
         return -1;
     } else {
@@ -66,9 +66,12 @@ void ecrireMessage(char *msg) {
 // - pour le tp, comme on crée un serveur, on met l'adresse de notre machine
 // on lance ensuite le serveur, puis on lance le client et ça fonctionne
 
-int main () {
+int main (int argc, const char* argv[] ) {
     // Definition de l'IP du serveur
-    char ipServ[15] = "127.0.0.1";
+    char ipServ[15];
+    strcpy(ipServ, argv[1]);
+    int portServ;
+    sscanf(argv[2], "%d", &portServ);
     // Variable de gestion d'erreur
     int res;
     // Création du buffer pour l'envoie/reception de message
@@ -85,7 +88,7 @@ int main () {
     // Definition des paramètres du serveur
     struct sockaddr_in adrServ;
     adrServ.sin_family = AF_INET;
-    adrServ.sin_port = htons(44573); // Définition du port du serveur
+    adrServ.sin_port = htons(portServ); // Définition du port du serveur
     // inet_pton() convertis une chaine de char en IP comprehensible pour le programme
     res = inet_pton(AF_INET, ipServ, &(adrServ.sin_addr));
     socklen_t lgA = sizeof(struct sockaddr_in);
@@ -101,7 +104,7 @@ int main () {
     }
     // Obtenir le numero du client
     res = 0 ;
-    res = recevoirMessage(&dSClient, numClient);
+    res = recevoirMessage(dSClient, numClient);
     if (res < 0) {
         printf("Echec de la reception du numéro client\n");
     } else {
@@ -110,10 +113,10 @@ int main () {
 
     // Attente de l'accord du serveur pour commencer
     printf("Veuillez attendre la confirmation du seveur pour commencer ... \n");
-    res = recevoirMessage(&dSClient, buffer);
+    res = recevoirMessage(dSClient, buffer);
     while( strcmp(buffer, "ok" ) != 0) {
         //On attend ...
-        res = recevoirMessage(&dSClient, buffer);
+        res = recevoirMessage(dSClient, buffer);
     }
     printf("Vous pouvez commencer \n");
 
@@ -126,16 +129,19 @@ int main () {
             ecrireMessage(buffer);
             printf("Votre message est : %s  \n",buffer);
             res = 0;
-            res = envoyerMessage(&dSClient, buffer);
+            res = envoyerMessage(dSClient, buffer);
             if (res < 0) {
                 printf("Echec de l'envoir du message au client 2");
             } else {
                 printf("Le message a bien été envoyé \n");
             }
 
-            printf("En attente du message du client 2 ... \n");
+            printf("En attente du message du client 2 fsdfs... \n");
+            printf("Etape 1");
             res =0;
-            res = recevoirMessage(&dSClient, buffer);
+            printf("Etape 1.5");
+            res = recevoirMessage(dSClient, buffer);
+            printf("Etape 2");
             if (res < 0) {
                 printf("Echec lord de la reception du message du client 2\n");
             } else {
@@ -146,8 +152,10 @@ int main () {
         // Cas du client 2
         if( strcmp(numClient, "2" ) == 0 )  {
             res =0;
-            printf("En attente du message du client 1 ... \n");
-            res = recevoirMessage(&dSClient, buffer);
+            printf("En attente du message du client 1 fsdfdsf... \n");
+            printf("Etape 1");
+            res = recevoirMessage(dSClient, buffer);
+            printf("Etape 2");
             if (res < 0) {
                 printf("Echec lord de la reception du message du client 2\n");
             } else {
@@ -160,7 +168,7 @@ int main () {
             ecrireMessage(buffer);
             printf("Votre message est : %s  \n",buffer);
             res = 0;
-            res = envoyerMessage(&dSClient, buffer);
+            res = envoyerMessage(dSClient, buffer);
             if (res < 0) {
                 printf("Echec de l'envoir du message au client 1");
             } else {
