@@ -5,6 +5,22 @@ Groupe :
 
 But : Coder une messagerie instantanée codé en C et basé sur le protocole Socket
 
+Pour compiler les fichier :
+```bash
+make
+```
+
+Pour lancer le serveur :
+```bash
+bash launch_server.sh
+```
+
+Pour compiler les fichier :
+```bash
+bash launch_client.sh
+```
+
+
 Déroulement :
 1. Le Serveur attend un connexion
 2. Le Client 1 se connecte et attend
@@ -18,6 +34,7 @@ Déroulement :
 10. Le serveur va alors envoyer aux deux client "stop", s'arreter et fermer ses ports.
 11. Les deux clients à la reception du message "stop" vont fermer leurs ports s'arreter.
 
-    
+
 Sources :
 - [Guide pour la programmation réseaux de Beej's](http://vidalc.chez.com/lf/socket.html)
+- [Les sockets en C de developpez](https://broux.developpez.com/articles/c/sockets/#L3-2-1-c)
