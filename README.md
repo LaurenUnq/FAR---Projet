@@ -20,4 +20,4 @@ Déroulement :
 
     
 Sources :
-    - [Guide pour la programmation réseaux de Beej's](http://vidalc.chez.com/lf/socket.html)
+- [Guide pour la programmation réseaux de Beej's](http://vidalc.chez.com/lf/socket.html)
