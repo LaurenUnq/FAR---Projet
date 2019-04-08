@@ -5,34 +5,126 @@
 #include <sys/socket.h>
 #include <stdlib.h>
 #include <string.h>
-//ici on fait entrer des message à l utilisateur jusqu'à ce qu'il
-//decide d'exit
+#include <signal.h>
+#include <unistd.h>
 
-//on met l adresse du serveur 
-//- pour le tp, comme on crée un serveur, on met l'adresse de notre machine
-//on lance ensuite le serveur, puis on lance le client et ça fonctionne 
+// Taille du buffer
+#define TAILLE_BUFFER 1024
+
+// Port(s) utilisé par le socket
+int dS;
+
+/*
+ * func envoyerMessage : Socket, char[] -> int
+ * Envoie a partir d'un socket, une chaine de charactère un message
+ * Renvoie 0 si aucune Erreur
+ * Arrete le programme et donne l'erreur si erreur
+ * Renvoie -2 si chaine trop longue
+ */
+int envoyerMessage(int dSClient,char *buffer) {
+    if (strlen(buffer) > TAILLE_BUFFER) {
+        return -2;
+    }
+    // + d'infos sur send()  : https://man.developpez.com/man2/send/
+    if (send(dSClient, buffer, strlen(buffer)+1, 0) < 0) {
+        perror("envoyerMessage");
+        exit(1);
+    } else {
+        return 0;
+    }
+}
+
+/*
+ * func envoyerString : Socket, char[] -> int
+ * Envoie a partir d'un socket, une chaine de charactère un message
+ * Renvoie 0 si aucune Erreur
+ * Renvoie -1 si erreur
+ * Renvoie -2 si chaine trop longue
+ */
+int envoyerString(int dSClient,char char_array[]) {
+    if (strlen(char_array) > TAILLE_BUFFER) {
+        return -2;
+    }
+    // + d'infos sur send()  : https://man.developpez.com/man2/send/
+    if (send(dSClient, char_array, strlen(char_array)+1, 0) < 0) {
+        perror("envoyerString");
+        exit(1);
+    } else {
+        printf("Message envoyé au client : %s\n", char_array);
+        return 0;
+    }
+}
+
+/*
+* func closeAllPort : int ->
+* Fonction appelée si l'utilisateur appuie sur CTRL+C
+*/
+void closeAllPort(int sig) {
+    envoyerString(dS, "fin");
+    close(dS);
+    printf("\nbye !\n");
+    exit(0);
+}
+
+
+/*
+* func recevoirMessage : Socket, char[], int -> int
+* Envoie a partir d'un socket, un tableau de charactère un message
+* Renvoie 0 si aucune Erreur
+* Renvoie -1 si erreur
+* Renvoie -2 si chaine trop longue
+* Arrete le programme via la fonction closeAllPort si le contenue de la chaine est "exit"
+*/
+int recevoirMessage(int dSClient,char *buffer) {
+    int n = recv(dSClient, buffer, TAILLE_BUFFER, 0);
+    if (n < 0) {
+        perror("recevoirMessage");
+        exit(1);
+    } else {
+        buffer[n] = '\0';
+        if (strcmp( buffer, "exit") == 0) {
+            closeAllPort(0);
+        }
+        return 0;
+    }
+}
+
+/*
+ * func ecrireMessage : char[] ->
+ * Recupère une chaine de charactère entrée par l'utilisateur et la stoque à l'adresse fourni
+ */
+void ecrireMessage(char *msg) {
+    fgets(msg, TAILLE_BUFFER, stdin);
+    char *toReplace = strchr(msg, '\n');
+    *toReplace = '\0';
+}
+
 
 int main () {
+
     //Definition du protole
-    int dS=socket(PF_INET,SOCK_STREAM,0);
+    dS = socket(PF_INET,SOCK_STREAM,0);
+
+    // Si l'utilisateur appuie sur CTRL+C, fermeture du port
+    signal(SIGINT, closeAllPort);
 
     //Connexion à un serveur
     struct sockaddr_in adServ;
-    int res; 
+    int res;
     adServ.sin_family = AF_INET;
     adServ.sin_port = htons(44573); //on rentre le port du serv
-    //Attention, le dernier chiffre de l'adresse correspond à celui 
-    //de la machine sur laquelle on est !!    
+    //Attention, le dernier chiffre de l'adresse correspond à celui
+    //de la machine sur laquelle on est !!
     //à changer si on change de machine
-    res = inet_pton(AF_INET,"162.38.111.95",&(adServ.sin_addr));
+    res = inet_pton(AF_INET,"127.0.0.1",&(adServ.sin_addr));
 
     socklen_t lgA = sizeof(struct sockaddr_in);
     res = connect(dS, (struct sockaddr *) &adServ, lgA);
 
 
-    char msg[124]; // ce que l'utilisateur va entrer 32 caracteres sans le caract. de fin de chaine
-    char depart[33];
-    char NumClient[3]; // Client 1 ou client 2
+    char buffer[1024];  // ce que l'utilisateur va entrer 32 caracteres sans le caract. de fin de chaine
+    char NumClient[3];  // Client 1 ou client 2
+    char repServ[3];    // ok
 
     printf("Etape 0 \n");
     //Envoi d'un message
@@ -45,48 +137,46 @@ int main () {
 
     printf("etape1 \n");
     //Obtenir le numero du client
-    recv(dS, NumClient, 33,0);
+    recv(dS, NumClient, 3,0);
     printf("Votre numero de Client est : %s \n ",NumClient);
 
     //attente de l'accord du serveur pour commencer
     printf("Veuillez attendre la confirmation du seveur pour commencer ... \n");
-    recv(dS, depart, 33,0);
-    printf("Message du serveur : %s \n", depart);
-    /*while( strcmp(depart, "ok" ) != 0) {
-        //On attend ...
-        recv(dS, depart, 33,0);
-    }*/
-    printf("Vous pouvez commencer \n");
+    // Attente du message "ok" du serveur
+    recv(dS, buffer, sizeof(buffer),0);
+    if (strcmp(buffer, "ok" ) != 0) {
+        printf("Message reçu : %s\n", buffer);
+        printf("Erreur, le message du serveur devrait etre \"ok\"\n");
+        close(dS);
+        exit(0);
+    } else {
+        printf("Vous pouvez commencer \n");
+    }
 
     //Debut de la boucle d'action read/write ...
     printf("Pour mettre fin à la connexion, tapez fin \n");
-    while ( strcmp( msg, "fin" ) != 0){
+    while (1){
 
         //Cas du client 1
         if( strcmp(NumClient, "1" )==0 )  {
-            printf("Quel message voulez-vous envoyer au serveur ? \n");
-            scanf("%s",msg);
-            printf("Votre message est : %s  \n",msg);
-            send(dS, msg, sizeof(msg), 0); //Le 1024 est la taille possible du message
-            printf("Le message %s a bien été envoyé \n",msg);
+            printf("=>");
+            ecrireMessage(buffer);
+            envoyerMessage(dS, buffer);
 
-            printf("Vous allez maintenant lire ... \n");
-            recv(dS, msg, sizeof(msg),0);
-            printf("La réponse du serveur est : %s \n", msg);
+            printf("En attente du message du client 2 \n");
+            recevoirMessage(dS, buffer);
+            printf("Message du client 2 : %s \n", buffer);
 
         }
 
         //Cas du client 2
         if( strcmp(NumClient, "2" )==0 )  {
-            printf("Vous allez maintenant lire ... \n");
-            recv(dS, msg, sizeof(msg),0);
-            printf("La réponse du serveur est : %s \n", msg);
+            printf("En attente du message du client 1 \n");
+            recevoirMessage(dS, buffer);
+            printf("Message du client 1 : %s \n", buffer);
 
-            printf("Quel message voulez-vous envoyer au serveur ? \n");
-            scanf("%s",msg);
-            printf("Votre message est : %s  \n",msg);
-            send(dS, msg, sizeof(msg), 0); //Le 1024 est la taille possible du message
-            printf("Le message %s a bien été envoyé \n",msg);
+            ecrireMessage(buffer);
+            envoyerMessage(dS, buffer);
         }
 
         printf("\n");
