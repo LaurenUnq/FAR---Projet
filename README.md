@@ -62,7 +62,7 @@ Arrêt du programme client :
 2. Le serveur va lui fermer le socket du client concerné, et attendre la connexion d'un autre client.
 3. Un nouveau client se connecte.
 4. Le serveur envoie au nouveau client le numéro du client précedemment deconnecté.
-5. Le serveur envoie au nouveau client "emi" (Mode reception).
+5. Le serveur envoie au nouveau client "rec" (Mode reception).
 6. Le serveur envoie aussi au nouveau client le dernier message envoyé au client precedemment deconnecté.
 7. Le client va alors entrer dans son fonctionnement normal.
 
