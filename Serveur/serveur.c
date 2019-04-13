@@ -16,70 +16,158 @@ int dS;
 int dSC1;
 int dSC2;
 
+struct sockaddr_in aC1;
+struct sockaddr_in aC2;
+socklen_t lg = sizeof(struct sockaddr_in);
 
-/*
- * func envoyerMessage : Socket, char[] -> int
- * Envoie a partir d'un socket, une chaine de charactère un message
- * Renvoie 0 si aucune Erreur
- * Renvoie -1 si erreur
- * Renvoie -2 si chaine trop longue
- */
-int envoyerMessage(int dSClient,char *buffer) {
-    if (strlen(buffer) > TAILLE_BUFFER) {
-        return -2;
+int attendreConnexion(int numClient);
+void envoyerMessage(int numClient,char *buffer);
+void closeAllPort();
+void recevoirMessage(int numClient,char *bufferReception, char *bufferPrecedent);
+void init_socket();
+struct sockaddr_in init_server(int port);
+void bind_server(struct sockaddr_in ad);
+void listen_server(int nbConnexion);
+
+
+int main () {
+    printf("Démarrage du serveur \n");
+    init_socket();
+    // Si l'utilisateur appuie sur CTRL+C, fermeture du port
+    signal(SIGINT, closeAllPort);
+
+    // définition des paramètres du serveur
+    struct sockaddr_in ad = init_server(44573);
+
+    //déclaration de variables annexes
+    int booleen1 = 1;
+    int nbConnexion = 2;
+    char buffer1[4096];
+    char buffer2[4096];
+
+    bind_server(ad);
+    listen_server(2);
+
+    //Connexion du client 1 et envoie du numéro
+    printf("En attente du client 1\n");
+    dSC1 = attendreConnexion(1);
+
+    //Connexion du client 1 et envoie du numéro
+    printf("En attente du client 2\n");
+    dSC2 = attendreConnexion(2);
+
+    //Envoi "ok" aux clients 1
+    envoyerMessage(1, "emi");
+    // Attendre un peu avant l'envoie du message suivant sinon bug des fois
+    sleep(1);
+    //Envoi "ok" aux clients 2
+    envoyerMessage(2, "rec");
+
+    int res;
+    //printf("étape 3 \n")
+    while (1){
+        printf("Attente du message du client 1 (pour le Client 2)... \n");
+        recevoirMessage(1, buffer1, buffer2);
+        printf("Message du client 1 : %s \n", buffer1);
+        envoyerMessage(2, buffer1);
+
+        printf("Attente du message du client 2 (pour le Client 1)... \n");
+        recevoirMessage(2, buffer2, buffer1);
+        printf("Message du client 1 : %s \n", buffer2);
+        envoyerMessage(1, buffer2);
+
     }
-    // + d'infos sur send()  : https://man.developpez.com/man2/send/
-    if (send(dSClient, buffer, strlen(buffer)+1, 0) < 0) {
-        perror("envoyerMessage");
-        exit(1);
-    } else {
-        return 0;
-    }
+
+    close(dSC1);
+    close(dSC2);
+    close(dS);
+
+    printf("Fermeture du serveur \n");
+
+    return 0;
 }
 
 /*
- * func envoyerString : Socket, char[] -> int
- * Envoie a partir d'un socket, une chaine de charactère un message
- * Renvoie 0 si aucune Erreur
- * Renvoie -1 si erreur
- * Renvoie -2 si chaine trop longue
- */
-int envoyerString(int dSClient,char char_array[]) {
-    if (strlen(char_array) > TAILLE_BUFFER) {
-        return -2;
-    }
-    // + d'infos sur send()  : https://man.developpez.com/man2/send/
-    if (send(dSClient, char_array, strlen(char_array)+1, 0) < 0) {
-        perror("envoyerString");
-        exit(1);
-    } else {
-        printf("Message envoyé au client : %s\n", char_array);
-        return 0;
-    }
-}
-
-/*
-* func attendreConnexion : int, struct sockaddr_in, socklen_t -> int
+* func attendreConnexion : int ->
 * Attend une connexion provenant d'un client
 */
-int attendreConnexion(int dS, struct sockaddr_in *aC1, socklen_t *lg) {
-    int cli = accept(dS, (struct sockaddr*)aC1,lg);
+int attendreConnexion(int numClient) {
+    int cli = accept(dS, (struct sockaddr*)&aC1,&lg);
     if(cli == -1) {
         perror("attendreConnexion");
         exit(1);
     } else {
+        printf("Socket client %d ouvert\n", numClient);
+        if (numClient == 1) {
+            dSC1 = cli;
+            envoyerMessage(1, "1");
+        } else if (numClient == 2) {
+            dSC2 = cli;
+            envoyerMessage(2, "2");
+        } else {
+            perror("attendreConnexion");
+            exit(1);
+        }
         return cli;
     }
 }
 
 /*
+* func gestionDecoClient : int, char[] ->
+* Gère la deconnexion d'un client
+*/
+void gestionDecoClient(int numClient, char *buffer) {
+    printf("Client %d deconnecté, en attente d'un nouveau client\n", numClient);
+    attendreConnexion(numClient);
+    sleep(1);
+    envoyerMessage(numClient, "rec");
+    envoyerMessage(numClient, buffer);
+}
+
+/*
+ * func envoyerMessage : int, char[] ->
+ * Envoie a partir d'un socket, une chaine de charactère un message
+ */
+void envoyerMessage(int numClient,char *buffer) {
+    if (strlen(buffer) > TAILLE_BUFFER) {
+        perror("Message trop long");
+        closeAllPort();
+        exit(1);
+    }
+    int res;
+    // + d'infos sur send()  : https://man.developpez.com/man2/send/
+    // Envoie du message au client voulu.
+    if (numClient == 1) {
+        res = send(dSC1, buffer, strlen(buffer)+1, 0);
+    } else if (numClient == 2) {
+        res = send(dSC2, buffer, strlen(buffer)+1, 0);
+    } else {
+        perror("Mauvais numéro client");
+        exit(1);
+    }
+    // Vérification du retour de la fonction
+    if (res < 0) {
+        perror("envoyerMessage");
+        exit(1);
+    } else {
+        printf("Message envoyé : %s\n", buffer);
+        if (strcmp(buffer, "fin") == 0) {
+            closeAllPort();
+        }
+    }
+}
+
+
+
+/*
 * func closeAllPort : int ->
 * Fonction appelée si l'utilisateur appuie sur CTRL+C
+* Envoie aux deux client "exit" et ferme tout les ports
 */
-void closeAllPort(int sig) {
-    envoyerString(dSC1, "exit");
+void closeAllPort() {
+    envoyerMessage(1, "exit");
     sleep(1);
-    envoyerString(dSC2, "exit");
+    envoyerMessage(1, "exit");
     close(dSC1);
     close(dSC2);
     close(dS);
@@ -88,7 +176,7 @@ void closeAllPort(int sig) {
 }
 
 /*
-* func recevoirMessage : Socket, char[], int -> int
+* func recevoirMessage : int, char[], char[]->
 * Envoie a partir d'un socket, un tableau de charactère un message
 * Renvoie 0 si aucune Erreur
 * Renvoie -1 si erreur
@@ -96,17 +184,31 @@ void closeAllPort(int sig) {
 * Arrete le programme via la fonction closeAllPort si le contenue de la chaine est "fin "
 */
 
-int recevoirMessage(int dSClient,char *buffer) {
-    int n = recv(dSClient, buffer, TAILLE_BUFFER, 0);
-    if (n < 0) {
+void recevoirMessage(int numClient,char *bufferReception, char *bufferPrecedent) {
+    int res;
+
+    // Reception du message venant du client
+    if (numClient == 1) {
+        res = recv(dSC1, bufferReception, TAILLE_BUFFER, 0);
+    } else if (numClient == 2) {
+        res = recv(dSC2, bufferReception, TAILLE_BUFFER, 0);
+    } else {
+        perror("Mauvais numéro client");
+        exit(1);
+    }
+
+    // Vérification du retoure de la fonction
+    if (res < 0) {
         perror("recevoirMessage");
         exit(1);
     } else {
-        buffer[n] = '\0';
-        if (strcmp( buffer, "fin") == 0) {
-            closeAllPort(0);
+        bufferReception[res] = '\0';
+        if (strcmp( bufferReception, "fin") == 0) {
+            gestionDecoClient(numClient, bufferPrecedent);
+            recevoirMessage(numClient, bufferReception, bufferPrecedent);
+        } else if (strcmp( bufferReception, "exit") == 0) {
+            strcpy(bufferReception, "Votre interlocutteur veut votre mort :/");
         }
-        return 0;
     }
 }
 
@@ -139,71 +241,4 @@ void listen_server(int nbConnexion) {
         perror("listen");
         exit(1);
     }
-}
-
-
-int main () {
-    printf("démarrage du serveur \n");
-    init_socket();
-    // Si l'utilisateur appuie sur CTRL+C, fermeture du port
-    signal(SIGINT, closeAllPort);
-
-    // définition des paramètres du serveur
-    struct sockaddr_in ad = init_server(44573);
-
-    struct sockaddr_in aC1;
-    struct sockaddr_in aC2;
-    socklen_t lg = sizeof(struct sockaddr_in);
-
-    //déclaration de variables annexes
-    int booleen1 = 1;
-    int nbConnexion = 2;
-    char buffer[1024];
-
-    bind_server(ad);
-
-    listen_server(2);
-
-    //Connexion du client 1 et envoie du numéro
-    printf("En attente du client 1\n");
-    dSC1 = attendreConnexion(dS, &aC1,&lg);
-    printf("Socket client 1 ouvert\n");
-    envoyerString(dSC1, "1");
-
-    //Connexion du client 1 et envoie du numéro
-    printf("En attente du client 2\n");
-    dSC2 = attendreConnexion(dS, &aC2,&lg);
-    printf("Socket client 2 ouvert\n");
-    envoyerString(dSC2, "2");
-
-    //Envoi "ok" aux clients 1
-    envoyerString(dSC1, "ok");
-    // Attendre un peu avant l'envoie du message suivant sinon bug des fois
-    sleep(1);
-    //Envoi "ok" aux clients 2
-    envoyerString(dSC2, "ok");
-
-    int res;
-    //printf("étape 3 \n")
-    while (1){
-        printf("Attente du message du client 1 (pour le Client 2)... \n");
-        recevoirMessage(dSC1, buffer);
-        printf("Message du client 1 : %s \n", buffer);
-        envoyerMessage(dSC2, buffer);
-
-        printf("Attente du message du client 2 (pour le Client 1)... \n");
-        recevoirMessage(dSC2, buffer);
-        printf("Message du client 2 : %s \n", buffer);
-        envoyerMessage(dSC1, buffer);
-    }
-
-    close(dSC1);
-    close(dSC2);
-    close(dS);
-
-    printf("Fermeture du serveur \n");
-
-    return 0;
-
-
 }
