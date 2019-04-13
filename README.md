@@ -2,9 +2,9 @@
 
 ## Itération 1
 
-### Groupe :
-### - Unquera Lauren
-### - Saimond Etienne
+##### Groupe :
+##### - Unquera Lauren
+##### - Saimond Etienne
 
 But : Coder une messagerie instantanée codé en C et basé sur le protocole Socket
 Itération 1 :
