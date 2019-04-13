@@ -1,9 +1,24 @@
 # FAR---Projet
-Groupe :
-- Unquera Lauren
-- Saimond Etienne
+
+## Itération 1
+
+### Groupe :
+### - Unquera Lauren
+### - Saimond Etienne
 
 But : Coder une messagerie instantanée codé en C et basé sur le protocole Socket
+Itération 1 :
+```
+* Un serveur relaie des messages textuels entre deux clients (livrable 1)
+* 1 programme serveur et 1 programme client, lancé deux fois (deux processus distincts)
+* 1 seul processus/thread serveur pour gérer les 2 clients, qui envoient leurs messages à tour de rôle (client 1 : write puis read, et client 2 : read puis write)
+* L’échange de messages s’arrête lorsque l’un des clients envoie le message « fin ».
+* Ceci n’arrête pas le serveur, qui peut attendre la connexion d’autres clients.
+
+Semaines du 1er et du 8 avril
+
+1 séance encadrée : 1h30 le mercredi 03 avril
+```
 
 Pour compiler les fichier :
 ```bash
