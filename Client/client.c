@@ -61,17 +61,22 @@ int main () {
     } else {
         printf("Vous pouvez commencer \n");
     }
-
+	int fin = 1;
     //Debut de la boucle d'action read/write ...
     printf("Pour mettre fin à la connexion, tapez fin \n");
-    while (1){
+    while (fin == 1){
 
         // Le client envoie un message
         if( strcmp(role, "emi" )==0 )  {
-            printf("=>");
+            printf("Ecrivez votre message =>");
             ecrireMessage(buffer);
-            envoyerMessage(dS, buffer);
+			envoyerMessage(dS, buffer);
             strcpy(role,"rec");
+			if (strcmp(buffer, "fin") == 0) {
+				fin = 0; 
+				sleep(1);
+				closeAllPort();
+			}
         }
         printf("\n");
 
@@ -84,7 +89,7 @@ int main () {
         }
         printf("\n");
     }
-
+	
     return 0;
 }
 
