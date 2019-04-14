@@ -22,6 +22,7 @@ Semaines du 1er et du 8 avril
 1 séance encadrée : 1h30 le mercredi 03 avril
 ```
 
+## Comment se servir de l'application
 Pour compiler les fichier :
 ```bash
 make
@@ -38,7 +39,8 @@ bash launch_client.sh
 ```
 
 
-Déroulement :
+## Déroulement :
+##### Echange entre le serveur et le client
 1. Le Serveur attend une connexion.
 2. Le Client 1 se connecte.
 3. Le serveur envoie au Client 1 son numéro.
@@ -58,7 +60,7 @@ Déroulement :
 16. Le client 1 recoit le message du client 2.
 * Fin de Boucle
 
-Arrêt du programme client :
+##### Arrêt du programme client :
 1. Si un client envoie "fin" au serveur, il ferme ses port et le programme se termine.
 2. Le serveur va lui fermer le socket du client concerné, et attendre la connexion d'un autre client.
 3. Un nouveau client se connecte.
@@ -67,11 +69,11 @@ Arrêt du programme client :
 6. Le serveur envoie aussi au nouveau client le dernier message envoyé au client precedemment deconnecté.
 7. Le client va alors entrer dans son fonctionnement normal.
 
-Fermeture du serveur :
+##### Fermeture du serveur :
 1. Si le serveur est fermé via CTRL+C, il envoie aux deux client "exit" et ferme ses socket.
 2. Les deux client à la reception du message "exit" vont fermer leurs socket
 
 
-Sources :
+## Sources :
 - [Guide pour la programmation réseaux de Beej's](http://vidalc.chez.com/lf/socket.html)
-- [Les sockets en C de developpez](https://broux.developpez.com/articles/c/sockets/#L3-2-1-c)
+- [Les sockets en C de developpez](https://broux.developpez.com/articles/c/sockets/)
