@@ -15,9 +15,6 @@
 //nb de connexions
 #define n 10
 
-
-
-
 // Port(s) utilisé par le socket
 const int NBCLIENT = n;
 int dS;
@@ -46,6 +43,7 @@ void bind_server(struct sockaddr_in ad);
 void listen_server(int NBCLIENT);
 static void* transmettre(void * args);
 void gestionDecoClient(int numClient);
+void envoyerMessageCom(int numClientDest, char *buffer, char* numClientSourc);
 
 
 int main () {
@@ -73,10 +71,10 @@ int main () {
 
     bind_server(ad);
     listen_server(NBCLIENT);
-
+	printf("En attente de client \n");
     //Connexion des clients et envoie du numéro
+
 	for (i = 0; i < NBCLIENT; i++) {
-		printf("En attente du client %d \n", i);
 		dSC[i] = attendreConnexion(i);
 		//Les threads
 		pthread_create((pthread_t*)&tabThread[i], NULL, transmettre, (void *)i);
@@ -101,13 +99,14 @@ int main () {
 
 /*
 *func transmettre : int ->
-*Transmet le message du client donné en parametre à l'autre client
+*Transmet le message du client donné en parametre à tous les autres clients
 */
 static void* transmettre(void * args){
     char buffer[TAILLE_BUFFER];
 	//Client qui envoie message - il faut receptionner son message
     int numClient = (int) args;
-	printf("dsoq^p : %d ", numClient);
+	char num[3];
+	sprintf(num, "%d", numClient);
     while (1) {
         //printf("Attente d'un message ... \n ");
         recevoirMessage(numClient, buffer);
@@ -115,15 +114,13 @@ static void* transmettre(void * args){
 			printf("Message du client %d : %s \n", numClient, buffer);
 			for (int z = 0; z < NBCLIENT; z++) {
 				if (z != numClient) {
-					envoyerMessage(z, buffer);
+					envoyerMessageCom(z, buffer, num);
 				}
 				
 			}
 		}
         
     } 
-
-	printf("Hello world");
 }
 
 /*
@@ -142,7 +139,7 @@ int attendreConnexion(int numClient) {
 		tabCo[numClient] = 1;
 		char num[3];
 		sprintf(num, "%d", numClient);
-		printf("chajfis : %s", num);
+		printf("Connexion du client %s \n", num);
 		envoyerMessage(numClient, num);
 		envoyerMessage(numClient, "start");
     } 
@@ -184,10 +181,48 @@ void envoyerMessage(int numClient,char *buffer) {
 			exit(1);
 		}
 		else {
-			printf("Message envoyé : %s\n", buffer);
+			printf("Message envoyé au client %d : %s\n", numClient, buffer );
 		}
 	}
 	if (numClient <0 || numClient >NBCLIENT)
+	{
+		perror("Mauvais numéro client");
+		exit(1);
+	}
+
+}
+
+/*
+ * func envoyerMessageCom : int, char[] ->
+ * Envoie a partir d'un socket, une chaine de charactère un message
+ * Dans ce message est figuré le numéro du client
+ */
+void envoyerMessageCom(int numClientDest, char *buffer, char* numClientSourc) {
+	if (strlen(buffer) > TAILLE_BUFFER) {
+		perror("Message trop long");
+		closeAllPort();
+		exit(1);
+	}
+	int res;
+	// + d'infos sur send()  : https://man.developpez.com/man2/send/
+	// Envoie du message au client passé en paramètre s'il est connecté
+	if (tabCo[numClientDest] == 1) {
+		char msg[TAILLE_BUFFER] = "message du client ";
+		strcat(msg, numClientSourc);
+		strcat(msg, " : ");
+		strcat(msg, buffer);
+		res = send(dSC[numClientDest], msg, strlen(msg) + 1, 0);
+
+		// Vérification du retour de la fonction
+		if (res < 0) {
+			perror("envoyerMessage");
+			exit(1);
+		}
+		else {
+			printf("Message envoyé au client %d : %s\n", numClientDest, buffer);
+		}
+	}
+	if (numClientDest <0 || numClientDest >NBCLIENT)
 	{
 		perror("Mauvais numéro client");
 		exit(1);
