@@ -1,4 +1,4 @@
-#include <stdio.h>
+  #include <stdio.h>
 #include <sys/types.h>
 #include <netdb.h>
 #include <arpa/inet.h>
@@ -44,7 +44,7 @@ int main () {
     //Attention, le dernier chiffre de l'adresse correspond à celui
     //de la machine sur laquelle on est !!
     //à changer si on change de machine
-    res = inet_pton(AF_INET,"127.0.0.1",&(adServ.sin_addr));
+    res = inet_pton(AF_INET,"162.38.111.91",&(adServ.sin_addr));
 
     socklen_t lgA = sizeof(struct sockaddr_in);
     res = connect(dS, (struct sockaddr *) &adServ, lgA);
@@ -123,6 +123,7 @@ void closeAllPort() {
 * Fonction appelée si l'utilisateur appuie sur CTRL+C
 */
 void deconnexion() {
+    printf("Deconnexion au serveur");
     envoyerMessage(dS, "fin");
     sleep(1);
     closeAllPort();
@@ -145,6 +146,7 @@ int recevoirMessage(int dSClient,char *buffer) {
     } else {
         buffer[n] = '\0';
         if (strcmp( buffer, "exit") == 0) {
+            printf("EXIT !!");
             closeAllPort();
         }
         return 0;
@@ -166,8 +168,10 @@ static void * ecrire()  {
         printf("Ecrivez votre message => ");
         ecrireMessage(buffer);
         envoyerMessage(dS, buffer);
+        printf("Retour a écrire");
         printf("\n");
     }
+    printf("Sortie fonction");
 }
 
 /*
