@@ -7,18 +7,26 @@
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
+#include <pthread.h>
 
 // Taille du buffer
 #define TAILLE_BUFFER 1024
 
+
 // Port(s) utilisé par le socket
 int dS;
+
+// threads
+pthread_t thread_ecrire;
+pthread_t thread_lire;
 
 int envoyerMessage(int dSClient,char *buffer);
 void closeAllPort();
 int recevoirMessage(int dSClient,char *buffer);
 void ecrireMessage(char *msg);
 void deconnexion();
+static void * ecrire();
+static void * lire();
 
 int main () {
 
@@ -44,52 +52,35 @@ int main () {
 
     char buffer[4096];  // ce que l'utilisateur va entrer 32 caracteres sans le caract. de fin de chaine
     char NumClient[3];  // Client 1 ou client 2
-    char role[4];    // ok
 
-    //Obtenir le numero du client
+    // Obtenir le numero du client
     recv(dS, NumClient, 3,0);
     printf("Votre numero de Client est : %s \n ",NumClient);
 
-    //attente de l'accord du serveur pour commencer
+    // Attente de l'accord du serveur pour commencer
     printf("Veuillez attendre la confirmation du seveur pour commencer ... \n");
     // Attente du role
-    recv(dS, role, sizeof(role),0);
-    if ((strcmp(role, "rec" ) != 0) && strcmp(role, "emi" ) != 0) {
-        perror("Mauvais role");
-        close(dS);
-        exit(0);
+    recv(dS, buffer, sizeof(buffer),0);
+    if (strcmp(buffer, "start" ) != 0) {
+        perror("Bad start message");
+        closeAllPort();
     } else {
         printf("Vous pouvez commencer \n");
     }
-	int fin = 1;
+
     //Debut de la boucle d'action read/write ...
     printf("Pour mettre fin à la connexion, tapez fin \n");
-    while (fin == 1){
+    // Creer thread lecture
+    pthread_create (&thread_ecrire, NULL, ecrire, NULL);
+    // Creer thread ecriture
+    pthread_create (&thread_lire, NULL, lire, NULL);
+    // Joindre thread lecture
+    pthread_join (thread_ecrire, NULL);
+    // Joindre thread ecriture
+    pthread_join (thread_lire, NULL);
+    // Attendre que l'utilisateur appuie sur CTRL+C
+    while (1);
 
-        // Le client envoie un message
-        if( strcmp(role, "emi" )==0 )  {
-            printf("Ecrivez votre message =>");
-            ecrireMessage(buffer);
-			envoyerMessage(dS, buffer);
-            strcpy(role,"rec");
-			if (strcmp(buffer, "fin") == 0) {
-				fin = 0; 
-				sleep(1);
-				closeAllPort();
-			}
-        }
-        printf("\n");
-
-        // Le client attend un message
-        if( strcmp(role, "rec" )==0 )  {
-            printf("En attente du message du client\n");
-            recevoirMessage(dS, buffer);
-            printf("Message du client : %s \n", buffer);
-            strcpy(role,"emi");
-        }
-        printf("\n");
-    }
-	
     return 0;
 }
 
@@ -107,9 +98,12 @@ int envoyerMessage(int dSClient,char *buffer) {
     // + d'infos sur send()  : https://man.developpez.com/man2/send/
     if (send(dSClient, buffer, strlen(buffer)+1, 0) < 0) {
         perror("envoyerMessage");
-        exit(1);
+        closeAllPort();
     } else {
         printf("Message envoyé : %s\n", buffer);
+        if (strcmp(buffer, "fin")) {
+            closeAllPort();
+        }
         return 0;
     }
 }
@@ -147,13 +141,32 @@ int recevoirMessage(int dSClient,char *buffer) {
     int n = recv(dSClient, buffer, TAILLE_BUFFER, 0);
     if (n < 0) {
         perror("recevoirMessage");
-        exit(1);
+        closeAllPort();
     } else {
         buffer[n] = '\0';
         if (strcmp( buffer, "exit") == 0) {
             closeAllPort();
         }
         return 0;
+    }
+}
+
+static void * lire() {
+    char buffer[4096];
+    while(1) {
+        recevoirMessage(dS, buffer);
+        printf("Message reçu : %s \n", buffer);
+        printf("\n");
+    }
+}
+
+static void * ecrire()  {
+    char buffer[4096];
+    while (1) {
+        printf("Ecrivez votre message => ");
+        ecrireMessage(buffer);
+        envoyerMessage(dS, buffer);
+        printf("\n");
     }
 }
 
