@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <signal.h>
+#include <pthread.h>
 
 // Taille du buffer
 #define TAILLE_BUFFER 4096
@@ -15,6 +16,10 @@
 int dS;
 int dSC1;
 int dSC2;
+
+//Déclaration des threads
+pthread_t c1toc2;
+pthread_t c2toc1;
 
 struct sockaddr_in aC1;
 struct sockaddr_in aC2;
@@ -28,6 +33,7 @@ void init_socket();
 struct sockaddr_in init_server(int port);
 void bind_server(struct sockaddr_in ad);
 void listen_server(int nbConnexion);
+static void * transmettre(int numClient1, int numClient2);
 
 
 int main () {
@@ -45,8 +51,15 @@ int main () {
     char buffer1[TAILLE_BUFFER];
     char buffer2[TAILLE_BUFFER];
 
+    //Les paramètres pour le thread
+    int  paraThreadc1toc2[2] = {1,2};
+    int  paraThreadc2toc1[2] = {2,1};
+
     bind_server(ad);
     listen_server(2);
+
+    pthread_create (&c1toc2, NULL, transmettre, paraThreadc1toc2);
+    pthread_create (&c2toc1, NULL, transmettre, paraThreadc2toc1);
 
     //Connexion du client 1 et envoie du numéro
     printf("En attente du client 1\n");
@@ -56,35 +69,50 @@ int main () {
     printf("En attente du client 2\n");
     dSC2 = attendreConnexion(2);
 
-    //Envoi "ok" aux clients 1
-    envoyerMessage(1, "emi");
+    //Envoi "start" aux clients 1
+    envoyerMessage(1, "start");
     // Attendre un peu avant l'envoie du message suivant sinon bug des fois
     sleep(1);
-    //Envoi "ok" aux clients 2
-    envoyerMessage(2, "rec");
+    //Envoi "start" aux clients 2
+    envoyerMessage(2, "start");
 
     int res;
     //printf("étape 3 \n")
     while (1){
+        /*
         printf("Attente du message du client 1 (pour le Client 2)... \n");
         recevoirMessage(1, buffer1, buffer2);
         printf("Message du client 1 : %s \n", buffer1);
         envoyerMessage(2, buffer1);
-
+        */
+        pthread_join (c1toc2, NULL);
+        pthread_join (c2toc1, NULL);
+        /*
         printf("Attente du message du client 2 (pour le Client 1)... \n");
         recevoirMessage(2, buffer2, buffer1);
         printf("Message du client 1 : %s \n", buffer2);
         envoyerMessage(1, buffer2);
+        */
 
     }
-
-    close(dSC1);
-    close(dSC2);
-    close(dS);
+    closeAllPort();
 
     printf("Fermeture du serveur \n");
 
     return 0;
+}
+
+/*
+*func transmettre : int ->
+*Transmet le message du client donné en parametre à l'autre client
+*/
+static void * transmettre(int numClient1, int numClient2){
+    char buffer1[TAILLE_BUFFER];
+    char buffer2[TAILLE_BUFFER];        
+    printf("Attente du message du client 1 (pour le Client 2)... \n");
+    recevoirMessage(numClient1, buffer1, buffer2);
+    printf("Message du client 1 : %s \n", buffer1);
+    envoyerMessage(numClient2, buffer1);
 }
 
 /*
@@ -166,7 +194,9 @@ void envoyerMessage(int numClient,char *buffer) {
 void closeAllPort() {
     envoyerMessage(1, "exit");
     sleep(1);
-    envoyerMessage(1, "exit");
+    pthread_cancel(c1toc2);
+    envoyerMessage(2, "exit");
+    pthread_cancel(c2toc1);
     close(dSC1);
     close(dSC2);
     close(dS);
