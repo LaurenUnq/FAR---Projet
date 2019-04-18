@@ -8,6 +8,7 @@
 #include <string.h>
 #include <signal.h>
 #include <pthread.h>
+#include <pwd.h> 
 
 // Taille du buffer
 #define TAILLE_BUFFER 4096
@@ -25,6 +26,11 @@ struct sockaddr_in aC1;
 struct sockaddr_in aC2;
 socklen_t lg = sizeof(struct sockaddr_in);
 
+struct arg_struct {
+        int arg1;
+        int arg2;
+    };
+
 int attendreConnexion(int numClient);
 void envoyerMessage(int numClient,char *buffer);
 void closeAllPort();
@@ -33,7 +39,7 @@ void init_socket();
 struct sockaddr_in init_server(int port);
 void bind_server(struct sockaddr_in ad);
 void listen_server(int nbConnexion);
-static void * transmettre(int numClient1, int numClient2);
+static void* transmettre(void * args);
 
 
 int main () {
@@ -52,14 +58,24 @@ int main () {
     char buffer2[TAILLE_BUFFER];
 
     //Les paramètres pour le thread
-    int  paraThreadc1toc2[2] = {1,2};
-    int  paraThreadc2toc1[2] = {2,1};
+    
+
+    struct arg_struct *paraThreadc1toc2 = (struct arg_struct *)malloc(sizeof(struct arg_struct));
+
+    paraThreadc1toc2->arg1 = 1;
+    paraThreadc1toc2->arg2 = 2;
+    
+    struct arg_struct *paraThreadc2toc1 = (struct arg_struct *)malloc(sizeof(struct arg_struct));;
+    paraThreadc2toc1->arg1 = 2;
+    paraThreadc2toc1->arg2 = 1;
+
+
 
     bind_server(ad);
     listen_server(2);
 
-    pthread_create (&c1toc2, NULL, transmettre, paraThreadc1toc2);
-    pthread_create (&c2toc1, NULL, transmettre, paraThreadc2toc1);
+    pthread_create (&c1toc2, NULL, transmettre, (void *)paraThreadc1toc2);
+    pthread_create (&c2toc1, NULL, transmettre, (void *)paraThreadc2toc1);
 
     //Connexion du client 1 et envoie du numéro
     printf("En attente du client 1\n");
@@ -106,9 +122,11 @@ int main () {
 *func transmettre : int ->
 *Transmet le message du client donné en parametre à l'autre client
 */
-static void * transmettre(int numClient1, int numClient2){
+static void* transmettre(void * args){
     char buffer1[TAILLE_BUFFER];
-    char buffer2[TAILLE_BUFFER];        
+    char buffer2[TAILLE_BUFFER];
+    int numClient1 = (int)((struct arg_struct*) args)->arg1;
+    int numClient2 = (int)((struct arg_struct*) args)->arg2;         
     printf("Attente du message du client 1 (pour le Client 2)... \n");
     recevoirMessage(numClient1, buffer1, buffer2);
     printf("Message du client 1 : %s \n", buffer1);
