@@ -1,4 +1,4 @@
-  #include <stdio.h>
+ #include <stdio.h>
 #include <sys/types.h>
 #include <netdb.h>
 #include <arpa/inet.h>
@@ -44,13 +44,13 @@ int main () {
     //Attention, le dernier chiffre de l'adresse correspond à celui
     //de la machine sur laquelle on est !!
     //à changer si on change de machine
-    res = inet_pton(AF_INET,"162.38.111.91",&(adServ.sin_addr));
+    res = inet_pton(AF_INET,"169.254.105.134",&(adServ.sin_addr));
 
     socklen_t lgA = sizeof(struct sockaddr_in);
     res = connect(dS, (struct sockaddr *) &adServ, lgA);
 
 
-    char buffer[4096];  // ce que l'utilisateur va entrer 32 caracteres sans le caract. de fin de chaine
+    char buffer[4096];  // ce que l'utilisateur va entrer
     char NumClient[3];  // Client 1 ou client 2
 
     // Obtenir le numero du client
@@ -68,7 +68,7 @@ int main () {
         printf("Vous pouvez commencer \n");
     }
 
-    //Debut de la boucle d'action read/write ...
+	printf("Vous pouvez écrire en continu cette fois ! :) \n");
     printf("Pour mettre fin à la connexion, tapez fin \n");
     // Creer thread lecture
     pthread_create (&thread_ecrire, NULL, ecrire, NULL);
@@ -101,7 +101,7 @@ int envoyerMessage(int dSClient,char *buffer) {
         closeAllPort();
     } else {
         printf("Message envoyé : %s\n", buffer);
-        if (strcmp(buffer, "fin")) {
+        if (strcmp(buffer, "fin") == 0) {
             closeAllPort();
         }
         return 0;
@@ -165,10 +165,9 @@ static void * lire() {
 static void * ecrire()  {
     char buffer[4096];
     while (1) {
-        printf("Ecrivez votre message => ");
+        printf("Ecrivez votre message ... \n");
         ecrireMessage(buffer);
         envoyerMessage(dS, buffer);
-        printf("Retour a écrire");
         printf("\n");
     }
     printf("Sortie fonction");

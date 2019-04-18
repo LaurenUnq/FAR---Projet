@@ -34,12 +34,13 @@ struct arg_struct {
 int attendreConnexion(int numClient);
 void envoyerMessage(int numClient,char *buffer);
 void closeAllPort();
-void recevoirMessage(int numClient,char *bufferReception, char *bufferPrecedent);
+void recevoirMessage(int numClient,char *bufferReception);
 void init_socket();
 struct sockaddr_in init_server(int port);
 void bind_server(struct sockaddr_in ad);
 void listen_server(int nbConnexion);
 static void* transmettre(void * args);
+void gestionDecoClient(int numClient);
 
 
 int main () {
@@ -77,11 +78,6 @@ int main () {
     printf("En attente du client 2\n");
     dSC2 = attendreConnexion(2);
 
-    //Envoi "start" aux clients 1
-    envoyerMessage(1, "start");
-
-    //Envoi "start" aux clients 2
-    envoyerMessage(2, "start");
 
     //Les threads
     pthread_create (&c1toc2, NULL, transmettre, (void *)paraThreadc1toc2);
@@ -90,19 +86,6 @@ int main () {
     pthread_join (c2toc1, NULL);
 
     while (1){
-        /*
-        printf("Attente du message du client 1 (pour le Client 2)... \n");
-        recevoirMessage(1, buffer1, buffer2);
-        printf("Message du client 1 : %s \n", buffer1);
-        envoyerMessage(2, buffer1);
-        */
-        
-        /*
-        printf("Attente du message du client 2 (pour le Client 1)... \n");
-        recevoirMessage(2, buffer2, buffer1);
-        printf("Message du client 1 : %s \n", buffer2);
-        envoyerMessage(1, buffer2);
-        */
 
     }
     closeAllPort();
@@ -117,15 +100,19 @@ int main () {
 *Transmet le message du client donné en parametre à l'autre client
 */
 static void* transmettre(void * args){
-    char buffer1[TAILLE_BUFFER];
-    char buffer2[TAILLE_BUFFER];
+    char buffer[TAILLE_BUFFER];
+	//Client qui envoie message - il faut receptionner son message
     int numClient1 = (int)((struct arg_struct*) args)->arg1;
+	//Client qui reçoit message - il faut lui envoyer le message
     int numClient2 = (int)((struct arg_struct*) args)->arg2;  
     while (1) {
-        printf("Attente du message du client %d ... \n",numClient1);
-        recevoirMessage(numClient1, buffer1, buffer2);
-        printf("Message du client : %s \n", buffer1);
-        envoyerMessage(numClient2, buffer1);
+        //printf("Attente d'un message ... \n ");
+        recevoirMessage(numClient1, buffer);
+		if (strcmp(buffer, "fin") != 0) {
+			printf("Message du client %d : %s \n", numClient1, buffer);
+			envoyerMessage(numClient2, buffer);
+		}
+        
     } 
 }
 
@@ -143,9 +130,11 @@ int attendreConnexion(int numClient) {
         if (numClient == 1) {
             dSC1 = cli;
             envoyerMessage(1, "1");
+			envoyerMessage(1, "start");
         } else if (numClient == 2) {
             dSC2 = cli;
             envoyerMessage(2, "2");
+			envoyerMessage(2, "start");
         } else {
             perror("attendreConnexion");
             exit(1);
@@ -160,12 +149,9 @@ int attendreConnexion(int numClient) {
 * Attend la connexion d'un nouveau client
 * Envoie au nouveau client le dernier message envoyé
 */
-void gestionDecoClient(int numClient, char *buffer) {
+void gestionDecoClient(int numClient) {
     printf("Client %d deconnecté, en attente d'un nouveau client\n", numClient);
     attendreConnexion(numClient);
-    sleep(1);
-    envoyerMessage(numClient, "rec");
-    envoyerMessage(numClient, buffer);
 }
 
 /*
@@ -221,21 +207,18 @@ void closeAllPort() {
 /*
 * func recevoirMessage : int, char[], char[]->
 * Recoit le message d'un client à partir du numéro du client
-* , un tableau de charactère pour recevoir le message
-* et un tableau de charactère contenant le dernier message envoyé en cas de deconnexion du client.
+* bufferReception est un tableau de charactère pour recevoir le message
 * Attend la connexion d'un nouveau client si le contenue de la chaine est "fin "
 */
 
-void recevoirMessage(int numClient,char *bufferReception, char *bufferPrecedent) {
+void recevoirMessage(int numClient,char *bufferReception) {
     int res;
 
     // Reception du message venant du client
     if (numClient == 1) {
         res = recv(dSC1, bufferReception, TAILLE_BUFFER, 0);
-        printf("buffer rec %s", bufferReception);
     } else if (numClient == 2) {
         res = recv(dSC2, bufferReception, TAILLE_BUFFER, 0);
-        printf("buffer rec %s", bufferReception);
     } else {
         perror("Mauvais numéro client");
         exit(1);
@@ -250,10 +233,8 @@ void recevoirMessage(int numClient,char *bufferReception, char *bufferPrecedent)
         // lié a une chaine trop longue ou mal formattée
         bufferReception[res] = '\0';
         if (strcmp( bufferReception, "fin") == 0) {
-            printf("appel recu");
             // Si un client se deconnecte, lance la procedure de gestion de deconnexion d'un client
-            gestionDecoClient(numClient, bufferPrecedent);
-            recevoirMessage(numClient, bufferReception, bufferPrecedent);
+            gestionDecoClient(numClient);
         } else if (strcmp( bufferReception, "exit") == 0) {
             // Envoie de exit avec un espace, sinon le client va se deconnecter a la reception du message
             strcpy(bufferReception, "exit ");
