@@ -12,21 +12,22 @@
 
 // Taille du buffer
 #define TAILLE_BUFFER 4096
+//nb de connexions
+#define n 10
+
+
 
 
 // Port(s) utilisé par le socket
-const int NBCLIENT = 3;
+const int NBCLIENT = n;
 int dS;
-//int dSC[NBCLIENT];
-int dSC[3];
-//struct sockaddr_in aC[NBCLIENT];
-struct sockaddr_in aC[3];
+int dSC[n];
+struct sockaddr_in aC[n];
 //table de connexion : 1 connecté, 0 sinon
-int tabCo[3];
+int tabCo[n];
 
 //Déclaration des threads
-//pthread_t tabThread[NBCLIENT];
-pthread_t tabThread[3];
+pthread_t tabThread[n];
 
 socklen_t lg = sizeof(struct sockaddr_in);
 
@@ -60,14 +61,16 @@ int main () {
 
     // définition des paramètres du serveur
     struct sockaddr_in ad = init_server(44573);
-	
+
+/*
 	//struct arg_struct * tabParThread[NBCLIENT];
-/*	int * tabParThread[NBCLIENT];
+	int * tabParThread[NBCLIENT];
 	for (i = 0; i < NBCLIENT; i++) {
 	//	(tabParThread[i])->thnumCli = i;
 		tabParThread[i] = i;
 	}
-	*/
+*/
+
     bind_server(ad);
     listen_server(NBCLIENT);
 
