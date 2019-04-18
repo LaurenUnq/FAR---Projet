@@ -54,11 +54,6 @@ int main () {
     //déclaration de variables annexes
     int booleen1 = 1;
     int nbConnexion = 2;
-    char buffer1[TAILLE_BUFFER];
-    char buffer2[TAILLE_BUFFER];
-
-    //Les paramètres pour le thread
-    
 
     struct arg_struct *paraThreadc1toc2 = (struct arg_struct *)malloc(sizeof(struct arg_struct));
 
@@ -69,31 +64,31 @@ int main () {
     paraThreadc2toc1->arg1 = 2;
     paraThreadc2toc1->arg2 = 1;
 
-
-
     bind_server(ad);
     listen_server(2);
-
-    pthread_create (&c1toc2, NULL, transmettre, (void *)paraThreadc1toc2);
-    pthread_create (&c2toc1, NULL, transmettre, (void *)paraThreadc2toc1);
 
     //Connexion du client 1 et envoie du numéro
     printf("En attente du client 1\n");
     dSC1 = attendreConnexion(1);
 
-    //Connexion du client 1 et envoie du numéro
+    //Connexion du client 1 et envoie du num
+    //char buffer1[TAILLE_BUFFER];
+    //char buffer2[TAILLE_BUFFER];éro
     printf("En attente du client 2\n");
     dSC2 = attendreConnexion(2);
 
     //Envoi "start" aux clients 1
     envoyerMessage(1, "start");
-    // Attendre un peu avant l'envoie du message suivant sinon bug des fois
-    sleep(1);
+
     //Envoi "start" aux clients 2
     envoyerMessage(2, "start");
 
-    int res;
-    //printf("étape 3 \n")
+    //Les threads
+    pthread_create (&c1toc2, NULL, transmettre, (void *)paraThreadc1toc2);
+    pthread_create (&c2toc1, NULL, transmettre, (void *)paraThreadc2toc1);
+    pthread_join (c1toc2, NULL);
+    pthread_join (c2toc1, NULL);
+
     while (1){
         /*
         printf("Attente du message du client 1 (pour le Client 2)... \n");
@@ -101,8 +96,7 @@ int main () {
         printf("Message du client 1 : %s \n", buffer1);
         envoyerMessage(2, buffer1);
         */
-        pthread_join (c1toc2, NULL);
-        pthread_join (c2toc1, NULL);
+        
         /*
         printf("Attente du message du client 2 (pour le Client 1)... \n");
         recevoirMessage(2, buffer2, buffer1);
@@ -126,11 +120,13 @@ static void* transmettre(void * args){
     char buffer1[TAILLE_BUFFER];
     char buffer2[TAILLE_BUFFER];
     int numClient1 = (int)((struct arg_struct*) args)->arg1;
-    int numClient2 = (int)((struct arg_struct*) args)->arg2;         
-    printf("Attente du message du client 1 (pour le Client 2)... \n");
-    recevoirMessage(numClient1, buffer1, buffer2);
-    printf("Message du client 1 : %s \n", buffer1);
-    envoyerMessage(numClient2, buffer1);
+    int numClient2 = (int)((struct arg_struct*) args)->arg2;  
+    while (1) {
+        printf("Attente du message du client %d ... \n",numClient1);
+        recevoirMessage(numClient1, buffer1, buffer2);
+        printf("Message du client : %s \n", buffer1);
+        envoyerMessage(numClient2, buffer1);
+    } 
 }
 
 /*
@@ -236,8 +232,10 @@ void recevoirMessage(int numClient,char *bufferReception, char *bufferPrecedent)
     // Reception du message venant du client
     if (numClient == 1) {
         res = recv(dSC1, bufferReception, TAILLE_BUFFER, 0);
+        printf("buffer rec %s", bufferReception);
     } else if (numClient == 2) {
         res = recv(dSC2, bufferReception, TAILLE_BUFFER, 0);
+        printf("buffer rec %s", bufferReception);
     } else {
         perror("Mauvais numéro client");
         exit(1);
@@ -252,6 +250,7 @@ void recevoirMessage(int numClient,char *bufferReception, char *bufferPrecedent)
         // lié a une chaine trop longue ou mal formattée
         bufferReception[res] = '\0';
         if (strcmp( bufferReception, "fin") == 0) {
+            printf("appel recu");
             // Si un client se deconnecte, lance la procedure de gestion de deconnexion d'un client
             gestionDecoClient(numClient, bufferPrecedent);
             recevoirMessage(numClient, bufferReception, bufferPrecedent);
