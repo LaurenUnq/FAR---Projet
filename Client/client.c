@@ -1,4 +1,4 @@
- #include <stdio.h>
+#include <stdio.h>
 #include <sys/types.h>
 #include <netdb.h>
 #include <arpa/inet.h>
@@ -10,7 +10,7 @@
 #include <pthread.h>
 
 // Taille du buffer
-#define TAILLE_BUFFER 1024
+#define TAILLE_BUFFER 4096
 
 
 // Port(s) utilisé par le socket
@@ -19,6 +19,9 @@ int dS;
 // threads
 pthread_t thread_ecrire;
 pthread_t thread_lire;
+
+// Pseudo du client
+char pseudo[TAILLE_BUFFER];
 
 int envoyerMessage(int dSClient,char *buffer);
 void closeAllPort();
@@ -44,7 +47,7 @@ int main () {
     //Attention, le dernier chiffre de l'adresse correspond à celui
     //de la machine sur laquelle on est !!
     //à changer si on change de machine
-    res = inet_pton(AF_INET,"169.254.105.134",&(adServ.sin_addr));
+    res = inet_pton(AF_INET,"127.0.0.1",&(adServ.sin_addr));
 
     socklen_t lgA = sizeof(struct sockaddr_in);
     res = connect(dS, (struct sockaddr *) &adServ, lgA);
@@ -55,12 +58,19 @@ int main () {
 
     // Obtenir le numero du client
     recv(dS, NumClient, 3,0);
-    printf("Votre numero de Client est : %s \n ",NumClient);
+    printf("Votre numero de Client est : %s \n",NumClient);
+
+    do {
+        printf("Donnez votre pseudo (32 char max)\n");
+        ecrireMessage(pseudo);
+        envoyerMessage(dS, pseudo);
+        recevoirMessage(dS, buffer);
+    } while ((strcmp(buffer, "Too Long") == 0));
 
     // Attente de l'accord du serveur pour commencer
     printf("Veuillez attendre la confirmation du seveur pour commencer ... \n");
-    // Attente du role
     recv(dS, buffer, sizeof(buffer),0);
+
     if (strcmp(buffer, "start" ) != 0) {
         perror("Bad start message");
         closeAllPort();
@@ -68,7 +78,7 @@ int main () {
         printf("Vous pouvez commencer \n");
     }
 
-	printf("Vous pouvez écrire en continu cette fois ! :) \n");
+    printf("Vous pouvez écrire en continu cette fois ! :) \n");
     printf("Pour mettre fin à la connexion, tapez fin \n");
     // Creer thread lecture
     pthread_create (&thread_ecrire, NULL, ecrire, NULL);
@@ -157,7 +167,7 @@ static void * lire() {
     char buffer[4096];
     while(1) {
         recevoirMessage(dS, buffer);
-        printf("Message reçu : %s \n", buffer);
+        printf("%s \n", buffer);
         printf("\n");
     }
 }

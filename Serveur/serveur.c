@@ -8,7 +8,7 @@
 #include <string.h>
 #include <signal.h>
 #include <pthread.h>
-#include <pwd.h> 
+#include <pwd.h>
 
 // Taille du buffer
 #define TAILLE_BUFFER 4096
@@ -20,8 +20,10 @@ const int NBCLIENT = n;
 int dS;
 int dSC[n];
 struct sockaddr_in aC[n];
-//table de connexion : 1 connecté, 0 sinon
+// Table de connexion : 1 connecté, 0 sinon
 int tabCo[n];
+// Table des pseudos
+char tabPsd[n][TAILLE_BUFFER];
 
 //Déclaration des threads
 pthread_t tabThread[n];
@@ -29,9 +31,8 @@ pthread_t tabThread[n];
 socklen_t lg = sizeof(struct sockaddr_in);
 
 struct arg_struct {
-        int thnumCli;
-        int arg2;
-    };
+    int numClient;
+};
 
 int attendreConnexion(int numClient);
 void envoyerMessage(int numClient,char *buffer);
@@ -40,19 +41,19 @@ void recevoirMessage(int numClient,char *bufferReception);
 void init_socket();
 struct sockaddr_in init_server(int port);
 void bind_server(struct sockaddr_in ad);
-void listen_server(int NBCLIENT);
+void listen_server(int nbCo);
 static void* transmettre(void * args);
 void gestionDecoClient(int numClient);
-void envoyerMessageCom(int numClientDest, char *buffer, char* numClientSourc);
+void envoyerMessageCom(int numClientDest, char *buffer, char* numClientSourc, char* pseudo);
 
 
 int main () {
     printf("Démarrage du serveur \n");
-	int i;
+    int i;
 
-	for (i = 0; i < NBCLIENT; i++) {
-		tabCo[i] = 0;
-	}
+    for (i = 0; i < NBCLIENT; i++) {
+        tabCo[i] = 0;
+    }
     init_socket();
     // Si l'utilisateur appuie sur CTRL+C, fermeture du port
     signal(SIGINT, closeAllPort);
@@ -61,31 +62,33 @@ int main () {
     struct sockaddr_in ad = init_server(44573);
 
 /*
-	//struct arg_struct * tabParThread[NBCLIENT];
-	int * tabParThread[NBCLIENT];
-	for (i = 0; i < NBCLIENT; i++) {
-	//	(tabParThread[i])->thnumCli = i;
-		tabParThread[i] = i;
-	}
+    //struct arg_struct * tabParThread[NBCLIENT];
+    int * tabParThread[NBCLIENT];
+    for (i = 0; i < NBCLIENT; i++) {
+    //    (tabParThread[i])->thnumCli = i;
+        tabParThread[i] = i;
+    }
 */
 
     bind_server(ad);
     listen_server(NBCLIENT);
-	printf("En attente de client \n");
+    printf("En attente de client \n");
     //Connexion des clients et envoie du numéro
 
-	for (i = 0; i < NBCLIENT; i++) {
-		dSC[i] = attendreConnexion(i);
-		//Les threads
-		pthread_create((pthread_t*)&tabThread[i], NULL, transmettre, (void *)i);
-		
-	}
+    for (i = 0; i < NBCLIENT; i++) {
+        dSC[i] = attendreConnexion(i);
+        //Les threads
+        struct arg_struct structNumClient;
+        structNumClient.numClient = i;
+        pthread_create((pthread_t*)&tabThread[i], NULL, transmettre, (void *)&structNumClient);
 
-	for (i = 0; i < NBCLIENT; i++) {
-		pthread_join((pthread_t)tabThread[i], NULL);
-	}
+    }
 
-    
+    for (i = 0; i < NBCLIENT; i++) {
+        pthread_join((pthread_t)tabThread[i], NULL);
+    }
+
+
 
     while (1){
 
@@ -93,7 +96,7 @@ int main () {
     closeAllPort();
 
     printf("Fermeture du serveur \n");
-	
+
     return 0;
 }
 
@@ -103,24 +106,24 @@ int main () {
 */
 static void* transmettre(void * args){
     char buffer[TAILLE_BUFFER];
-	//Client qui envoie message - il faut receptionner son message
-    int numClient = (int) args;
-	char num[3];
-	sprintf(num, "%d", numClient);
+    //Client qui envoie message - il faut receptionner son message
+    int numClient = ((struct arg_struct *)args)->numClient;
+    char num[3];
+    sprintf(num, "%d", numClient);
     while (1) {
         //printf("Attente d'un message ... \n ");
         recevoirMessage(numClient, buffer);
-		if (strcmp(buffer, "fin") != 0) {
-			printf("Message du client %d : %s \n", numClient, buffer);
-			for (int z = 0; z < NBCLIENT; z++) {
-				if (z != numClient) {
-					envoyerMessageCom(z, buffer, num);
-				}
-				
-			}
-		}
-        
-    } 
+        if (strcmp(buffer, "fin") != 0) {
+            printf("Message du client %d : %s \n", numClient, buffer);
+            for (int z = 0; z < NBCLIENT; z++) {
+                if (z != numClient) {
+                    envoyerMessageCom(z, buffer, num, &tabPsd[numClient][0]);
+                }
+
+            }
+        }
+
+    }
 }
 
 /*
@@ -132,19 +135,30 @@ int attendreConnexion(int numClient) {
     if(cli == -1) {
         perror("attendreConnexion");
         exit(1);
-    } 
-	else {
-		printf("Socket client %d ouvert\n", numClient);
-		dSC[numClient] = cli;
-		tabCo[numClient] = 1;
-		char num[3];
-		sprintf(num, "%d", numClient);
-		printf("Connexion du client %s \n", num);
-		envoyerMessage(numClient, num);
-		envoyerMessage(numClient, "start");
-    } 
+    }
+    else {
+        printf("Socket client %d ouvert\n", numClient);
+        dSC[numClient] = cli;
+        tabCo[numClient] = 1;
+        char num[3];
+        sprintf(num, "%d", numClient);
+        printf("Connexion du client %s \n", num);
+        // Envoie au client de son numéro
+        envoyerMessage(numClient, num);
+        // Attente du pseudo choisi par le client
+        recevoirMessage(numClient, &tabPsd[numClient][0]);
+        // Tant que le pseudo est trop long en demander un nouveau
+        while (strlen(&tabPsd[numClient][0]) > 32) {
+            envoyerMessage(numClient, "Too Long");
+            recevoirMessage(numClient, &tabPsd[numClient][0]);
+        }
+        envoyerMessage(numClient, "Nice nickname");
+        printf("Pseudo du client : %s\n", &tabPsd[numClient][0]);
+        // Envoie du signal de départ au client
+        envoyerMessage(numClient, "start");
+    }
     return cli;
-    
+
 }
 
 /*
@@ -155,7 +169,7 @@ int attendreConnexion(int numClient) {
 */
 void gestionDecoClient(int numClient) {
     printf("Client %d deconnecté, en attente d'un nouveau client\n", numClient);
-	tabCo[numClient] = 0;
+    tabCo[numClient] = 0;
     attendreConnexion(numClient);
 }
 
@@ -172,61 +186,61 @@ void envoyerMessage(int numClient,char *buffer) {
     int res;
     // + d'infos sur send()  : https://man.developpez.com/man2/send/
     // Envoie du message au client passé en paramètre s'il est connecté
-	if (tabCo[numClient] == 1) {
-		res = send(dSC[numClient], buffer, strlen(buffer) + 1, 0);
+    if (tabCo[numClient] == 1) {
+        res = send(dSC[numClient], buffer, strlen(buffer) + 1, 0);
 
-		// Vérification du retour de la fonction
-		if (res < 0) {
-			perror("envoyerMessage");
-			exit(1);
-		}
-		else {
-			printf("Message envoyé au client %d : %s\n", numClient, buffer );
-		}
-	}
-	if (numClient <0 || numClient >NBCLIENT)
-	{
-		perror("Mauvais numéro client");
-		exit(1);
-	}
+        // Vérification du retour de la fonction
+        if (res < 0) {
+            perror("envoyerMessage");
+            exit(1);
+        }
+        else {
+            printf("Message envoyé au client %d : %s\n", numClient, buffer );
+        }
+    }
+    if (numClient <0 || numClient >NBCLIENT)
+    {
+        perror("Mauvais numéro client");
+        exit(1);
+    }
 
 }
 
 /*
  * func envoyerMessageCom : int, char[] ->
  * Envoie a partir d'un socket, une chaine de charactère un message
- * Dans ce message est figuré le numéro du client
+ * Dans ce message est figuré le numéro du client et son pseudo
  */
-void envoyerMessageCom(int numClientDest, char *buffer, char* numClientSourc) {
-	if (strlen(buffer) > TAILLE_BUFFER) {
-		perror("Message trop long");
-		closeAllPort();
-		exit(1);
-	}
-	int res;
-	// + d'infos sur send()  : https://man.developpez.com/man2/send/
-	// Envoie du message au client passé en paramètre s'il est connecté
-	if (tabCo[numClientDest] == 1) {
-		char msg[TAILLE_BUFFER] = "message du client ";
-		strcat(msg, numClientSourc);
-		strcat(msg, " : ");
-		strcat(msg, buffer);
-		res = send(dSC[numClientDest], msg, strlen(msg) + 1, 0);
+void envoyerMessageCom(int numClientDest, char *buffer, char* numClientSourc, char* pseudo) {
+    if (strlen(buffer) > TAILLE_BUFFER) {
+        perror("Message trop long");
+        closeAllPort();
+        exit(1);
+    }
+    int res;
+    // + d'infos sur send()  : https://man.developpez.com/man2/send/
+    // Envoie du message au client passé en paramètre s'il est connecté
+    if (tabCo[numClientDest] == 1) {
+        char msg[TAILLE_BUFFER] = "message de ";
+        strcat(msg, pseudo);
+        strcat(msg, " : ");
+        strcat(msg, buffer);
+        res = send(dSC[numClientDest], msg, strlen(msg) + 1, 0);
 
-		// Vérification du retour de la fonction
-		if (res < 0) {
-			perror("envoyerMessage");
-			exit(1);
-		}
-		else {
-			printf("Message envoyé au client %d : %s\n", numClientDest, buffer);
-		}
-	}
-	if (numClientDest <0 || numClientDest >NBCLIENT)
-	{
-		perror("Mauvais numéro client");
-		exit(1);
-	}
+        // Vérification du retour de la fonction
+        if (res < 0) {
+            perror("envoyerMessage");
+            exit(1);
+        }
+        else {
+            printf("Message envoyé au client %d : %s\n", numClientDest, buffer);
+        }
+    }
+    if (numClientDest < 0 || numClientDest > NBCLIENT)
+    {
+        perror("Mauvais numéro client");
+        exit(1);
+    }
 
 }
 
@@ -238,13 +252,13 @@ void envoyerMessageCom(int numClientDest, char *buffer, char* numClientSourc) {
 * Envoie aux deux client "exit" et ferme tout les ports
 */
 void closeAllPort() {
-	int i;
-	for (i = 0; i < NBCLIENT; i++) {
-		envoyerMessage(i, "exit");
-		pthread_cancel(tabThread[i]);
-		close(dSC[i]);
-		tabCo[i] = 0;
-	}
+    int i;
+    for (i = 0; i < NBCLIENT; i++) {
+        envoyerMessage(i, "exit");
+        pthread_cancel(tabThread[i]);
+        close(dSC[i]);
+        tabCo[i] = 0;
+    }
     close(dS);
     printf("\n bye !\n");
     exit(0);
@@ -261,12 +275,12 @@ void recevoirMessage(int numClient,char *bufferReception) {
     int res;
 
     // Reception du message venant du client
-	res = recv(dSC[numClient], bufferReception, TAILLE_BUFFER, 0);
-	if (numClient <0 || numClient >NBCLIENT)
-	{
-		perror("Mauvais numéro client");
-		exit(1);
-	}
+    res = recv(dSC[numClient], bufferReception, TAILLE_BUFFER, 0);
+    if (numClient <0 || numClient >NBCLIENT)
+    {
+        perror("Mauvais numéro client");
+        exit(1);
+    }
 
     // Vérification du retour de la fonction
     if (res < 0) {
@@ -285,6 +299,7 @@ void recevoirMessage(int numClient,char *bufferReception) {
         }
     }
 }
+
 
 /*
 * func init_socket : ->
