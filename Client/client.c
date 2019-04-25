@@ -8,6 +8,8 @@
 #include <signal.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <limits.h>
+#include <dirent.h>
 
 // Taille du buffer
 #define TAILLE_BUFFER 4096
@@ -28,8 +30,14 @@ void closeAllPort();
 int recevoirMessage(int dSClient,char *buffer);
 void ecrireMessage(char *msg);
 void deconnexion();
+void traiterCommande(int dSClient,char *buffer);
+void envoyerFichier();
+void recevoirFichier(int dSClient,char *buffer);
 static void * ecrire();
 static void * lire();
+// External functions
+int get_last_tty();
+FILE* new_tty();
 
 int main () {
 
@@ -66,11 +74,8 @@ int main () {
         envoyerMessage(dS, pseudo);
         recevoirMessage(dS, buffer);
     } while ((strcmp(buffer, "Too Long") == 0));
-
     // Attente de l'accord du serveur pour commencer
     printf("Veuillez attendre la confirmation du seveur pour commencer ... \n");
-    recv(dS, buffer, sizeof(buffer),0);
-
     if (strcmp(buffer, "start" ) != 0) {
         perror("Bad start message");
         closeAllPort();
@@ -78,8 +83,7 @@ int main () {
         printf("Vous pouvez commencer \n");
     }
 
-    printf("Vous pouvez écrire en continu cette fois ! :) \n");
-    printf("Pour mettre fin à la connexion, tapez fin \n");
+    printf("\n\n");
     // Creer thread lecture
     pthread_create (&thread_ecrire, NULL, ecrire, NULL);
     // Creer thread ecriture
@@ -106,14 +110,11 @@ int envoyerMessage(int dSClient,char *buffer) {
         return -2;
     }
     // + d'infos sur send()  : https://man.developpez.com/man2/send/
-    if (send(dSClient, buffer, strlen(buffer)+1, 0) < 0) {
+    if (send(dSClient, buffer, strlen(buffer), 0) < 0) {
         perror("envoyerMessage");
         closeAllPort();
     } else {
         printf("Message envoyé : %s\n", buffer);
-        if (strcmp(buffer, "fin") == 0) {
-            closeAllPort();
-        }
         return 0;
     }
 }
@@ -133,9 +134,8 @@ void closeAllPort() {
 * Fonction appelée si l'utilisateur appuie sur CTRL+C
 */
 void deconnexion() {
-    printf("Deconnexion au serveur");
-    envoyerMessage(dS, "fin");
-    sleep(1);
+    printf("Deconnexion au serveur\n");
+    envoyerMessage(dS, "/fin");
     closeAllPort();
 }
 
@@ -155,32 +155,141 @@ int recevoirMessage(int dSClient,char *buffer) {
         closeAllPort();
     } else {
         buffer[n] = '\0';
-        if (strcmp( buffer, "exit") == 0) {
-            printf("EXIT !!");
-            closeAllPort();
-        }
         return 0;
     }
 }
 
+/*
+* func traiterCommande : Socket ->
+* Lance la procédure d'envoie d'un fichier
+*/
+void envoyerFichier() {
+    FILE* fp1 = new_tty();
+    fprintf(fp1,"%s\n","Ce terminal sera utilisé uniquement pour l'affichage");
+
+    // Demander à l'utilisateur quel fichier afficher
+    DIR *dp;
+    struct dirent *ep;
+    dp = opendir ("./Upload");
+    if (dp != NULL) {
+        fprintf(fp1,"Voilà la liste de fichiers :\n");
+        while (ep = readdir (dp)) {
+        if(strcmp(ep->d_name,".")!=0 && strcmp(ep->d_name,"..")!=0)
+  	        fprintf(fp1,"%s\n",ep->d_name);
+        }
+        (void) closedir (dp);
+    }
+    else {
+        perror ("Ne peux pas ouvrir le répertoire");
+    }
+    fprintf(fp1, "%s\n", "Indiquer le nom du fichier : ");
+    char fileName[1023];
+    char fullPath[1023];
+    fgets(fileName,sizeof(fileName), stdin);
+    fileName[strlen(fileName)-1]='\0';
+    sprintf(fullPath, "./Upload/%s", fileName);
+    FILE *fps = fopen(fullPath, "r");
+    if (fps == NULL){
+        fprintf(fp1, "%s%s\n", "Ne peux pas ouvrir le fichier suivant :",fileName);
+    }
+    else {
+        char str[TAILLE_BUFFER];
+        printf("Début du transfère du fichier");
+        // Envoie de la commande de début de transfère
+        envoyerMessage(dS, "/file");
+        // Lire et afficher le contenu du fichier
+        while (fgets(str, TAILLE_BUFFER, fps) != NULL) {
+            envoyerMessage(dS, str);
+        }
+    }
+    fclose(fps);
+    // Envoyer End Of File
+    envoyerMessage(dS, "/EOF");
+    printf("Fin du transfère du fichier");
+}
+
+/*
+* func recevoirFichier : ->
+* Recevoir un fichier provenant d'un autre client
+*/
+void recevoirFichier(int dSClient,char *buffer) {
+    printf("Reception d'un fichier\n");
+    while (strcmp(buffer, "/EOF") != 0) {
+        recevoirMessage(dSClient, buffer);
+        // TODO Mettre le message dans un nouveua fichier
+        puts(buffer);
+    }
+    // Fermer le fichier
+}
+
+/*
+* func traiterCommande : Socket, char[] ->
+* Traite la chaine de charactère ecrite par l'utilisateur
+* afin de determiner l'action à réaliser
+*/
+void traiterCommande(int dSClient,char *buffer) {
+    if (strcmp(buffer, "/fin") == 0) {
+        // Le client veut mettre fin à la connexion
+        deconnexion();
+    } else if (strcmp(buffer, "/help") == 0) {
+        // Le client veut afficher toute les commandes disponibles
+        printf("/fin\t\t:\t\tMettre fin à la connexion avec le serveur\n");
+        printf("/file\t\t:\t\tEnvoyer un fichier à l'autre client\n");
+    } else if (strcmp(buffer, "/file") == 0) {
+        // Le client souhaite envoyer un message aux autre client
+        // TODO Faire un thread
+        //pthread_t thread_fichier;
+        //pthread_create (&thread_fichier, NULL, envoyerFichier, NULL);
+        envoyerFichier();
+    } else {
+        envoyerMessage(dSClient, buffer);
+    }
+}
+
+/*
+* func traiterCommande : Socket, char[] ->
+* Traite la chaine de charactère recu
+* afin de determiner l'action à réaliser
+*/
+void traiterDemande(int dSClient,char *buffer) {
+    if(strcmp(buffer, "/BOF") == 0) {
+        recevoirFichier(dSClient, buffer);
+    } else if (strcmp( buffer, "exit") == 0) {
+        printf("EXIT !!");
+        closeAllPort();
+    } else {
+        printf("%s \n", buffer);
+    }
+}
+
+/*
+* func lire* : ->
+* Recoid les messages venant des autres clients
+*/
 static void * lire() {
     char buffer[4096];
     while(1) {
         recevoirMessage(dS, buffer);
-        printf("%s \n", buffer);
+        traiterDemande(dS, buffer);
         printf("\n");
     }
 }
 
+/*
+* func ecrire* : ->
+* Recoit les messages/commandes du client et les traite
+*/
 static void * ecrire()  {
     char buffer[4096];
+    printf("Ecrivez vos message\n");
+    // TODO : /help
+    printf("/help pour une liste des commandes ... \n");
+
     while (1) {
-        printf("Ecrivez votre message ... \n");
         ecrireMessage(buffer);
-        envoyerMessage(dS, buffer);
+        traiterCommande(dS, buffer);
         printf("\n");
     }
-    printf("Sortie fonction");
 }
 
 /*
@@ -191,4 +300,50 @@ void ecrireMessage(char *msg) {
     fgets(msg, TAILLE_BUFFER, stdin);
     char *toReplace = strchr(msg, '\n');
     *toReplace = '\0';
+}
+
+// External Functions
+
+
+int get_last_tty() {
+  FILE *fp;
+  char path[1035];
+  fp = popen("/bin/ls /dev/pts", "r");
+  if (fp == NULL) {
+    printf("Impossible d'exécuter la commande\n" );
+    exit(1);
+  }
+  int i = INT_MIN;
+  while (fgets(path, sizeof(path)-1, fp) != NULL) {
+    if(strcmp(path,"ptmx")!=0){
+      int tty = atoi(path);
+      if(tty > i) i = tty;
+    }
+  }
+
+  pclose(fp);
+  return i;
+}
+
+
+FILE* new_tty() {
+  pthread_mutex_t the_mutex;
+  pthread_mutex_init(&the_mutex,0);
+  pthread_mutex_lock(&the_mutex);
+  system("gnome-terminal");
+  sleep(1);
+  char *tty_name = ttyname(STDIN_FILENO);
+  int ltty = get_last_tty();
+  char str[2];
+  sprintf(str,"%d",ltty);
+  int i;
+  for(i = strlen(tty_name)-1; i >= 0; i--) {
+    if(tty_name[i] == '/') break;
+  }
+  tty_name[i+1] = '\0';
+  strcat(tty_name,str);
+  FILE *fp = fopen(tty_name,"wb+");
+  pthread_mutex_unlock(&the_mutex);
+  pthread_mutex_destroy(&the_mutex);
+  return fp;
 }

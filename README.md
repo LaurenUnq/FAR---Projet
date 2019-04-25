@@ -7,19 +7,40 @@
 ##### - Saimond Etienne
 
 But : Créer une messagerie instantanée codée en C et basée sur le protocole Socket
-Itération 1 :
+Itération 3 : transfert de fichiers (livrable 3) :
 ```
-Un serveur relaie des messages textuels entre deux clients (livrable 1)
-Il doit y avoir 1 programme serveur et 1 programme client.
-Ce dernier devant être lancé deux fois (deux processus distincts).
-1 seul processus/thread serveur doit gérer les 2 clients,
-qui envoient leurs messages à tour de rôle (client 1 : write puis read, et client 2 : read puis write)
-L’échange de messages s’arrête lorsque l’un des clients envoie le message « fin ».
-Ceci n’arrête pas le serveur, qui peut attendre la connexion d’autres clients.
+A tout moment, un client peut décider d’envoyer un fichier, il saisit le mot « file ».
+Le client liste les fichiers d’un répertoire (dédié à l’application et dans lequel on doit ranger au
+préalable les fichiers pouvant être transférés) et demande à l’utilisateur de choisir, dans cette liste,
+un fichier à envoyer. Ceci est géré par un thread dédié.
+Comme ça, le client peut continuer à échanger des messages textuels.
+Un fichier reçu par le client est stocké dans un deuxième répertoire (dédié aux fichiers téléchargés). Un thread est dédié à la réception de fichiers.
+v1 : Le serveur reçoit le contenu du fichier et le transmet à l’autre client (sur Moodle, un exemple
+de gestion de fichiers dans le langage C).
+Alternative (plus optimale, mais plus complexe que v1) : le serveur met juste en relation les clients
+pour le transfert des fichiers (il ne reçoit pas le contenu des fichiers et le relaie).
+Il transmet à chaque client la structure (sockaddr_in) qui contient l’adresse IP et le numéro de port de l’autre client (le serveur devient un annuaire dans ce cas). 
+Le client qui transmet le fichier devient un serveur pour l’autre client (l’application est un système pair-à-pair).
 
-Semaines du 1er et du 8 avril
+Voilà un extrait de code qui
+montre comment récupérer cette structure côté serveur (si ce n’est pas déjà fait dans votre code) :
 
-1 séance encadrée : 1h30 le mercredi 03 avril
+struct sockaddr_in adCv ;
+socklen_t lgCv = sizeof (struct sockaddr_in);
+...
+int connfd = accept(listenfd, (struct sockaddr*)&adCv, &lgCv);
+puts("Demande de connexion d’un client acceptée \n");
+printf("L’adresse IP du client est : %s\n", inet_ntoa(adCv.sin_addr));
+printf("Son numéro de port est : %d\n", (int) ntohs(adCv.sin_port));
+
+v2 : mettre en place un thread par fichier à transférer (et un thread par fichier à recevoir). De cette
+manière, si des fichiers volumineux sont transférés, on peut avoir plusieurs transferts de fichiers en
+parallèle.
+
+Semaines du 22 et du 29 avril (la semaine du 29 étant une semaine de vacances). 2 séances
+encadrées : 3h pour chaque groupe
+
+Livrable à rendre le dimanche 5 mai au soir.
 ```
 
 ## Comment se servir de l'application
@@ -46,7 +67,7 @@ bash launch_client.sh
 3. Le serveur envoie au Client 1 son numéro.
 4. Le Client 1 attend de recevoir son role du serveur.
 5. Le Serveur attend une autre connexion.
-6. Le Client 2 se connecte. 
+6. Le Client 2 se connecte.
 7. Le serveur envoie au Client 2 son numéro.
 8. Le Client 2 attend de recevoir son role du serveur.
 9. Le Serveur envoie au Client 1 "emi" (Mode émission).

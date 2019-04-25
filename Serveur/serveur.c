@@ -45,6 +45,10 @@ void listen_server(int nbCo);
 static void* transmettre(void * args);
 void gestionDecoClient(int numClient);
 void envoyerMessageCom(int numClientDest, char *buffer, char* numClientSourc, char* pseudo);
+void envoyerMessageAToutClient(int numClient,char *buffer);
+void envoyerMessageAToutClientCom(int numClient,char *buffer);
+void traiterDemande(int numClient,char *buffer);
+void transfererFichier(int numClient);
 
 
 int main () {
@@ -108,21 +112,11 @@ static void* transmettre(void * args){
     char buffer[TAILLE_BUFFER];
     //Client qui envoie message - il faut receptionner son message
     int numClient = ((struct arg_struct *)args)->numClient;
-    char num[3];
-    sprintf(num, "%d", numClient);
     while (1) {
         //printf("Attente d'un message ... \n ");
         recevoirMessage(numClient, buffer);
-        if (strcmp(buffer, "fin") != 0) {
-            printf("Message du client %d : %s \n", numClient, buffer);
-            for (int z = 0; z < NBCLIENT; z++) {
-                if (z != numClient) {
-                    envoyerMessageCom(z, buffer, num, &tabPsd[numClient][0]);
-                }
-
-            }
-        }
-
+        printf("Message recu de %s : %s", &tabPsd[numClient][0], buffer);
+        traiterDemande(numClient, buffer);
     }
 }
 
@@ -152,7 +146,6 @@ int attendreConnexion(int numClient) {
             envoyerMessage(numClient, "Too Long");
             recevoirMessage(numClient, &tabPsd[numClient][0]);
         }
-        envoyerMessage(numClient, "Nice nickname");
         printf("Pseudo du client : %s\n", &tabPsd[numClient][0]);
         // Envoie du signal de départ au client
         envoyerMessage(numClient, "start");
@@ -204,6 +197,32 @@ void envoyerMessage(int numClient,char *buffer) {
         exit(1);
     }
 
+}
+
+/*
+ * func envoyerMessage : int, char[] ->
+ * Envoie a partir d'un numéro de client un message à tout les client connectés
+ */
+void envoyerMessageAToutClient(int numClient,char *buffer) {
+    for (int z = 0; z < NBCLIENT; z++) {
+        if (z != numClient) {
+            envoyerMessage(z, buffer);
+        }
+    }
+}
+
+/*
+ * func envoyerMessage : int, char[] ->
+ * Envoie a partir d'un numéro de client un message à tout les client connectés incluant le pseudo du client
+ */
+void envoyerMessageAToutClientCom(int numClient,char *buffer) {
+    char num[3];
+    sprintf(num, "%d", numClient);
+    for (int z = 0; z < NBCLIENT; z++) {
+        if (z != numClient) {
+            envoyerMessageCom(z, buffer, num, &tabPsd[numClient][0]);
+        }
+    }
 }
 
 /*
@@ -276,7 +295,7 @@ void recevoirMessage(int numClient,char *bufferReception) {
 
     // Reception du message venant du client
     res = recv(dSC[numClient], bufferReception, TAILLE_BUFFER, 0);
-    if (numClient <0 || numClient >NBCLIENT)
+    if (numClient < 0 || numClient > NBCLIENT)
     {
         perror("Mauvais numéro client");
         exit(1);
@@ -290,13 +309,6 @@ void recevoirMessage(int numClient,char *bufferReception) {
         // Remplace le dernier charactère par '\0' pour éviter toute erreur
         // lié a une chaine trop longue ou mal formattée
         bufferReception[res] = '\0';
-        if (strcmp( bufferReception, "fin") == 0) {
-            // Si un client se deconnecte, lance la procedure de gestion de deconnexion d'un client
-            gestionDecoClient(numClient);
-        } else if (strcmp( bufferReception, "exit") == 0) {
-            // Envoie de exit avec un espace, sinon le client va se deconnecter a la reception du message
-            strcpy(bufferReception, "exit ");
-        }
     }
 }
 
@@ -346,4 +358,48 @@ void listen_server(int nbCo) {
         perror("listen");
         exit(1);
     }
+}
+
+/*
+* func traiterDemande : int, char[] ->
+* Traite la demande du client a partir de son numero de client et du message reçu de ce dernier
+*/
+void traiterDemande(int numClient,char *buffer) {
+    if (strcmp(buffer, "/fin") == 0) {
+        gestionDecoClient(numClient);
+    } else if (strcmp(buffer, "/file") == 0) {
+        transfererFichier(numClient);
+    } else if (
+    (strcmp( buffer, "/exit") == 0)
+    || (strcmp( buffer, "/BOF") == 0)
+    ) {
+        printf("%s joue au hacker\n", &tabPsd[numClient][0]);
+        // Envoie de exit avec un espace, sinon le client va se deconnecter a la reception du message
+        sprintf(buffer, "%s ", buffer);
+        envoyerMessage(numClient, "NON!");
+    } else if (strcmp( buffer, "") == 0) {
+        printf("Message Vide recu de %s\n", &tabPsd[numClient][0]);
+    } else {
+        printf("Message recu de %s : %s\n", &tabPsd[numClient][0], buffer);
+        envoyerMessageAToutClientCom(numClient, buffer);
+    }
+}
+
+/*
+* func transfererFichier : int ->
+* transfère au client un fichier
+*/
+void transfererFichier(int numClient) {
+    printf("Début du transfère du fichier de %d vers les autres clients\n", tabPsd[numClient][0]);
+    // BOF = Beginning of file
+    char buffer[TAILLE_BUFFER];
+    envoyerMessageAToutClient(numClient, "/BOF");
+    // Tant que le fichier n'est pas reçu
+    while (strcmp(buffer, "/EOF") != 0) {
+        puts(buffer);
+        recevoirMessage(numClient, buffer);
+        envoyerMessageAToutClient(numClient, buffer);
+    }
+    // EOF = End-of-file
+    envoyerMessageAToutClient(numClient, "/EOF");
 }
