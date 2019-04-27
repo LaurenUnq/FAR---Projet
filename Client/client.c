@@ -185,20 +185,25 @@ void envoyerFichier() {
     fprintf(fp1, "%s\n", "Indiquer le nom du fichier : ");
     char fileName[1023];
     char fullPath[1023];
-    fgets(fileName,sizeof(fileName), stdin);
-    fileName[strlen(fileName)-1]='\0';
+    // L'utilisateur écrit le nom du fichier
+    ecrireMessage(fileName);
     sprintf(fullPath, "./Upload/%s", fileName);
+    // Ouverture du fichier a envoyer
     FILE *fps = fopen(fullPath, "r");
     if (fps == NULL){
         fprintf(fp1, "%s%s\n", "Ne peux pas ouvrir le fichier suivant :",fileName);
     }
     else {
-        char str[TAILLE_BUFFER];
-        printf("Début du transfère du fichier");
+        char str[1024];
+        printf("Début du transfère du fichier\n");
         // Envoie de la commande de début de transfère
-        envoyerMessage(dS, "/file");
+        sprintf(str, "/file");
+        envoyerMessage(dS, str);
+        // Envoie du nom du fichier
+        envoyerMessage(dS, fileName);
         // Lire et afficher le contenu du fichier
-        while (fgets(str, TAILLE_BUFFER, fps) != NULL) {
+        while (fgets(str, 1023, fps) != NULL) {
+            str[1024] = '\0';
             envoyerMessage(dS, str);
         }
     }
@@ -214,11 +219,25 @@ void envoyerFichier() {
 */
 void recevoirFichier(int dSClient,char *buffer) {
     printf("Reception d'un fichier\n");
-    while (strcmp(buffer, "/EOF") != 0) {
-        recevoirMessage(dSClient, buffer);
-        // TODO Mettre le message dans un nouveua fichier
-        puts(buffer);
+    // Reception du nom du fichier
+    recevoirMessage(dS, buffer);
+    char filePath[1023];
+    sprintf(filePath, "./Download/%s", buffer);
+    printf("Lien du fichier à recevoir : %s \n\n", filePath);
+    // Création du fichier portant le nom du fichiers
+    FILE* fichier = fopen(filePath, "w");
+    if (fichier != NULL) {
+        printf("Début de l'écriture dans le fichier\n");
+        while (strcmp(buffer, "/EOF") != 0) {
+            recevoirMessage(dSClient, buffer);
+            // puts(buffer);
+            fprintf(fichier, "%s", buffer);
+        }
+        fclose(fichier);
+    } else {
+        printf("Echec lors de l'ouverture du fichier");
     }
+    printf("Fin de l'écriture dans le fichier");
     // Fermer le fichier
 }
 

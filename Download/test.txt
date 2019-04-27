@@ -1,0 +1,6 @@
+Contenu du fichier test.txt à envoyer
+J'essaye plusieurs lignes
+Ici et
+La
+Salut;
+/EOF

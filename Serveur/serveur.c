@@ -115,7 +115,6 @@ static void* transmettre(void * args){
     while (1) {
         //printf("Attente d'un message ... \n ");
         recevoirMessage(numClient, buffer);
-        printf("Message recu de %s : %s", &tabPsd[numClient][0], buffer);
         traiterDemande(numClient, buffer);
     }
 }
@@ -180,7 +179,7 @@ void envoyerMessage(int numClient,char *buffer) {
     // + d'infos sur send()  : https://man.developpez.com/man2/send/
     // Envoie du message au client passé en paramètre s'il est connecté
     if (tabCo[numClient] == 1) {
-        res = send(dSC[numClient], buffer, strlen(buffer) + 1, 0);
+        res = send(dSC[numClient], buffer, strlen(buffer), 0);
 
         // Vérification du retour de la fonction
         if (res < 0) {
@@ -294,7 +293,7 @@ void recevoirMessage(int numClient,char *bufferReception) {
     int res;
 
     // Reception du message venant du client
-    res = recv(dSC[numClient], bufferReception, TAILLE_BUFFER, 0);
+    res = recv(dSC[numClient], bufferReception, TAILLE_BUFFER - 1, 0);
     if (numClient < 0 || numClient > NBCLIENT)
     {
         perror("Mauvais numéro client");
@@ -390,16 +389,17 @@ void traiterDemande(int numClient,char *buffer) {
 * transfère au client un fichier
 */
 void transfererFichier(int numClient) {
-    printf("Début du transfère du fichier de %d vers les autres clients\n", tabPsd[numClient][0]);
+    printf("Début du transfère du fichier de %s vers les autres clients\n", &tabPsd[numClient][0]);
     // BOF = Beginning of file
     char buffer[TAILLE_BUFFER];
     envoyerMessageAToutClient(numClient, "/BOF");
+    // Transfère du nom du fichier
+    recevoirMessage(numClient, buffer);
+    envoyerMessageAToutClient(numClient, buffer);
     // Tant que le fichier n'est pas reçu
     while (strcmp(buffer, "/EOF") != 0) {
-        puts(buffer);
         recevoirMessage(numClient, buffer);
         envoyerMessageAToutClient(numClient, buffer);
     }
-    // EOF = End-of-file
-    envoyerMessageAToutClient(numClient, "/EOF");
+    // La derniere chaine envoyée au client est /EOF (End of File)
 }
