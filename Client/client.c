@@ -25,9 +25,9 @@ pthread_t thread_lire;
 // Pseudo du client
 char pseudo[TAILLE_BUFFER];
 
-int envoyerMessage(int dSClient,char *buffer);
+void envoyerMessage(int dSClient,char *bufferEnvoie);
 void closeAllPort();
-int recevoirMessage(int dSClient,char *buffer);
+void recevoirMessage(int dSClient,char *bufferReception);
 void ecrireMessage(char *msg);
 void deconnexion();
 void traiterCommande(int dSClient,char *buffer);
@@ -99,23 +99,23 @@ int main () {
 }
 
 /*
- * func envoyerMessage : Socket, char[] -> int
+ * func envoyerMessage : Socket, char[] ->
  * Envoie a partir d'un socket, une chaine de charactère un message
  * Renvoie 0 si aucune Erreur
  * Arrete le programme et donne l'erreur si erreur
  * Renvoie -2 si chaine trop longue
  */
-int envoyerMessage(int dSClient,char *buffer) {
-    if (strlen(buffer) > TAILLE_BUFFER) {
-        return -2;
-    }
+void envoyerMessage(int dSClient,char *bufferEnvoie) {
+    int res = send(dSClient, bufferEnvoie, strlen(bufferEnvoie), 0);
     // + d'infos sur send()  : https://man.developpez.com/man2/send/
-    if (send(dSClient, buffer, strlen(buffer), 0) < 0) {
+    if (res == -1) {
         perror("envoyerMessage");
         closeAllPort();
+    } else if (res == 0){
+        perror("Connexion perdu");
+        closeAllPort();
     } else {
-        printf("Message envoyé : %s\n", buffer);
-        return 0;
+        printf("Message envoyé : %s\n", bufferEnvoie);
     }
 }
 
@@ -141,21 +141,23 @@ void deconnexion() {
 
 
 /*
-* func recevoirMessage : Socket, char[], int -> int
+* func recevoirMessage : Socket, char[], int ->
 * Envoie a partir d'un socket, un tableau de charactère un message
 * Renvoie 0 si aucune Erreur
 * Renvoie -1 si erreur
 * Renvoie -2 si chaine trop longue
 * Arrete le programme via la fonction closeAllPort si le contenue de la chaine est "exit"
 */
-int recevoirMessage(int dSClient,char *buffer) {
-    int n = recv(dSClient, buffer, TAILLE_BUFFER, 0);
-    if (n < 0) {
+void recevoirMessage(int dSClient,char *bufferReception) {
+    int res = recv(dSClient, bufferReception, TAILLE_BUFFER - 1, 0);
+    if (res == -1) {
         perror("recevoirMessage");
         closeAllPort();
+    } else if (res == 0){
+        perror("Connexion perdu");
+        closeAllPort();
     } else {
-        buffer[n] = '\0';
-        return 0;
+        bufferReception[res] = '\0';
     }
 }
 
@@ -194,7 +196,7 @@ void envoyerFichier() {
         fprintf(fp1, "%s%s\n", "Ne peux pas ouvrir le fichier suivant :",fileName);
     }
     else {
-        char str[1024];
+        char str[128];
         printf("Début du transfère du fichier\n");
         // Envoie de la commande de début de transfère
         sprintf(str, "/file");
@@ -202,12 +204,13 @@ void envoyerFichier() {
         // Envoie du nom du fichier
         envoyerMessage(dS, fileName);
         // Lire et afficher le contenu du fichier
-        while (fgets(str, 1023, fps) != NULL) {
-            str[1024] = '\0';
+        while (fgets(str, 127, fps) != NULL) {
+            str[strlen(str)] = '\0';
             envoyerMessage(dS, str);
         }
     }
     fclose(fps);
+    fclose(fp1);
     // Envoyer End Of File
     envoyerMessage(dS, "/EOF");
     printf("Fin du transfère du fichier");
@@ -221,23 +224,27 @@ void recevoirFichier(int dSClient,char *buffer) {
     printf("Reception d'un fichier\n");
     // Reception du nom du fichier
     recevoirMessage(dS, buffer);
-    char filePath[1023];
+    char filePath[75];
     sprintf(filePath, "./Download/%s", buffer);
     printf("Lien du fichier à recevoir : %s \n\n", filePath);
     // Création du fichier portant le nom du fichiers
     FILE* fichier = fopen(filePath, "w");
     if (fichier != NULL) {
         printf("Début de l'écriture dans le fichier\n");
-        while (strcmp(buffer, "/EOF") != 0) {
+        int endOfFile = 1;
+        while (endOfFile != 0) {
             recevoirMessage(dSClient, buffer);
-            // puts(buffer);
-            fprintf(fichier, "%s", buffer);
+            endOfFile = strcmp(buffer, "/EOF");
+            if (endOfFile != 0) {
+                fprintf(fichier, "%s", buffer);
+            } else {
+                fclose(fichier);
+            }
         }
-        fclose(fichier);
+        printf("Fin de l'écriture dans le fichier");
     } else {
         printf("Echec lors de l'ouverture du fichier");
     }
-    printf("Fin de l'écriture dans le fichier");
     // Fermer le fichier
 }
 

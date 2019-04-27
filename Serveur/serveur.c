@@ -135,7 +135,7 @@ int attendreConnexion(int numClient) {
         tabCo[numClient] = 1;
         char num[3];
         sprintf(num, "%d", numClient);
-        printf("Connexion du client %s \n", num);
+        printf("Connexion du client %d \n", numClient);
         // Envoie au client de son numéro
         envoyerMessage(numClient, num);
         // Attente du pseudo choisi par le client
@@ -169,8 +169,8 @@ void gestionDecoClient(int numClient) {
  * func envoyerMessage : int, char[] ->
  * Envoie a partir d'un socket, une chaine de charactère un message
  */
-void envoyerMessage(int numClient,char *buffer) {
-    if (strlen(buffer) > TAILLE_BUFFER) {
+void envoyerMessage(int numClient,char *bufferEnvoie) {
+    if (strlen(bufferEnvoie) > TAILLE_BUFFER) {
         perror("Message trop long");
         closeAllPort();
         exit(1);
@@ -178,24 +178,25 @@ void envoyerMessage(int numClient,char *buffer) {
     int res;
     // + d'infos sur send()  : https://man.developpez.com/man2/send/
     // Envoie du message au client passé en paramètre s'il est connecté
-    if (tabCo[numClient] == 1) {
-        res = send(dSC[numClient], buffer, strlen(buffer), 0);
-
-        // Vérification du retour de la fonction
-        if (res < 0) {
-            perror("envoyerMessage");
-            exit(1);
-        }
-        else {
-            printf("Message envoyé au client %d : %s\n", numClient, buffer );
-        }
-    }
-    if (numClient <0 || numClient >NBCLIENT)
+    if (numClient < 0 || numClient > NBCLIENT)
     {
         perror("Mauvais numéro client");
         exit(1);
+    } else {
+        if (tabCo[numClient] == 1) {
+            res = send(dSC[numClient], bufferEnvoie, strlen(bufferEnvoie), 0);
+            // Vérification du retour de la fonction
+            if (res == -1) {
+                perror("envoyerMessage");
+                gestionDecoClient(numClient);
+            } else if (res == 0) {
+                perror("Client deconnecté");
+                gestionDecoClient(numClient);
+            } else {
+                printf("Message envoyé au client %d : %s\n", numClient, bufferEnvoie);
+            }
+        }
     }
-
 }
 
 /*
@@ -243,7 +244,7 @@ void envoyerMessageCom(int numClientDest, char *buffer, char* numClientSourc, ch
         strcat(msg, pseudo);
         strcat(msg, " : ");
         strcat(msg, buffer);
-        res = send(dSC[numClientDest], msg, strlen(msg) + 1, 0);
+        res = send(dSC[numClientDest], msg, strlen(msg), 0);
 
         // Vérification du retour de la fonction
         if (res < 0) {
@@ -290,10 +291,8 @@ void closeAllPort() {
 */
 
 void recevoirMessage(int numClient,char *bufferReception) {
-    int res;
-
     // Reception du message venant du client
-    res = recv(dSC[numClient], bufferReception, TAILLE_BUFFER - 1, 0);
+    int res = recv(dSC[numClient], bufferReception, TAILLE_BUFFER - 1, 0);
     if (numClient < 0 || numClient > NBCLIENT)
     {
         perror("Mauvais numéro client");
@@ -301,9 +300,12 @@ void recevoirMessage(int numClient,char *bufferReception) {
     }
 
     // Vérification du retour de la fonction
-    if (res < 0) {
+    if (res == -1) {
         perror("recevoirMessage");
-        exit(1);
+        gestionDecoClient(numClient);
+    } else if (res == 0) {
+        perror("Client deconnecté");
+        gestionDecoClient(numClient);
     } else {
         // Remplace le dernier charactère par '\0' pour éviter toute erreur
         // lié a une chaine trop longue ou mal formattée
