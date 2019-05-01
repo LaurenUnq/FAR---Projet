@@ -51,6 +51,7 @@ void traiterDemande(int numClient,char *buffer);
 void transfererFichier(int numClient);
 
 
+
 int main () {
     printf("Démarrage du serveur \n");
     int i;
@@ -63,7 +64,7 @@ int main () {
     signal(SIGINT, closeAllPort);
 
     // définition des paramètres du serveur
-    struct sockaddr_in ad = init_server(44573);
+    struct sockaddr_in ad = init_server(44575);
 
 /*
     //struct arg_struct * tabParThread[NBCLIENT];
@@ -184,7 +185,7 @@ void envoyerMessage(int numClient,char *bufferEnvoie) {
         exit(1);
     } else {
         if (tabCo[numClient] == 1) {
-            res = send(dSC[numClient], bufferEnvoie, strlen(bufferEnvoie), 0);
+            res = send(dSC[numClient], bufferEnvoie, strlen(bufferEnvoie)+1, 0);
             // Vérification du retour de la fonction
             if (res == -1) {
                 perror("envoyerMessage");

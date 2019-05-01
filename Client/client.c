@@ -38,6 +38,7 @@ static void * lire();
 // External functions
 int get_last_tty();
 FILE* new_tty();
+void delay(int number_of_seconds);
 
 int main () {
 
@@ -51,7 +52,7 @@ int main () {
     struct sockaddr_in adServ;
     int res;
     adServ.sin_family = AF_INET;
-    adServ.sin_port = htons(44573); //on rentre le port du serv
+    adServ.sin_port = htons(44575); //on rentre le port du serv
     //Attention, le dernier chiffre de l'adresse correspond à celui
     //de la machine sur laquelle on est !!
     //à changer si on change de machine
@@ -106,7 +107,7 @@ int main () {
  * Renvoie -2 si chaine trop longue
  */
 void envoyerMessage(int dSClient,char *bufferEnvoie) {
-    int res = send(dSClient, bufferEnvoie, strlen(bufferEnvoie), 0);
+    int res = send(dSClient, bufferEnvoie, strlen(bufferEnvoie)+1, 0);
     // + d'infos sur send()  : https://man.developpez.com/man2/send/
     if (res == -1) {
         perror("envoyerMessage");
@@ -201,12 +202,15 @@ void envoyerFichier() {
         // Envoie de la commande de début de transfère
         sprintf(str, "/file");
         envoyerMessage(dS, str);
+        delay(5);
         // Envoie du nom du fichier
         envoyerMessage(dS, fileName);
+        delay(5);
         // Lire et afficher le contenu du fichier
         while (fgets(str, 127, fps) != NULL) {
             str[strlen(str)] = '\0';
             envoyerMessage(dS, str);
+            delay(5);
         }
     }
     fclose(fps);
@@ -372,4 +376,16 @@ FILE* new_tty() {
   pthread_mutex_unlock(&the_mutex);
   pthread_mutex_destroy(&the_mutex);
   return fp;
+}
+
+// source : https://www.geeksforgeeks.org/time-delay-c/
+void delay(int number_of_seconds) {
+    // Converting time into milli_seconds
+    int milli_seconds = 1000 * number_of_seconds;
+
+    // Stroing start time
+    clock_t start_time = clock();
+
+    // looping till required time is not acheived
+    while (clock() < start_time + milli_seconds);
 }
