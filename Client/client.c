@@ -25,7 +25,7 @@ pthread_t thread_lire;
 // Pseudo du client
 char pseudo[TAILLE_BUFFER];
 
-void envoyerMessage(int dSClient,char *bufferEnvoie);
+void envoyerMessage(int dSClient, char *bufferEnvoie, int tailleBuffer);
 void closeAllPort();
 void recevoirMessage(int dSClient,char *bufferReception);
 void ecrireMessage(char *msg);
@@ -72,7 +72,7 @@ int main () {
     do {
         printf("Donnez votre pseudo (32 char max)\n");
         ecrireMessage(pseudo);
-        envoyerMessage(dS, pseudo);
+        envoyerMessage(dS, pseudo, strlen(pseudo));
         recevoirMessage(dS, buffer);
     } while ((strcmp(buffer, "Too Long") == 0));
     // Attente de l'accord du serveur pour commencer
@@ -100,15 +100,31 @@ int main () {
 }
 
 /*
- * func envoyerMessage : Socket, char[] ->
- * Envoie a partir d'un socket, une chaine de charactère un message
+ * func envoyerMessage : Socket, char[], int ->
+ * Envoie a partir d'un socket, un tableau d'octets et sa taille
  * Renvoie 0 si aucune Erreur
  * Arrete le programme et donne l'erreur si erreur
  * Renvoie -2 si chaine trop longue
  */
-void envoyerMessage(int dSClient,char *bufferEnvoie) {
-    int res = send(dSClient, bufferEnvoie, strlen(bufferEnvoie)+1, 0);
+void envoyerMessage(int dSClient, char *bufferEnvoie, int tailleBuffer) {
+    int tailleRestante = tailleBuffer;
+    int tailleEnvoyee = 0;
+    int res;
+    char tailleBufferInt [124];
+    sprintf(tailleBufferInt, "%d", tailleBuffer);
+    res = send(dSClient, tailleBufferInt, tailleBuffer, 0);
+    while (tailleRestante > 0 || tailleEnvoyee < tailleBuffer)
+    {
+        
+        res = send(dSClient, bufferEnvoie, tailleBuffer, 0);
+        tailleEnvoyee = tailleEnvoyee + res;
+        tailleRestante = tailleBuffer - res;
+        bufferEnvoie = bufferEnvoie + 
+
+    }
+    
     // + d'infos sur send()  : https://man.developpez.com/man2/send/
+    while ( )
     if (res == -1) {
         perror("envoyerMessage");
         closeAllPort();
@@ -136,7 +152,7 @@ void closeAllPort() {
 */
 void deconnexion() {
     printf("Deconnexion au serveur\n");
-    envoyerMessage(dS, "/fin");
+    envoyerMessage(dS, "/fin", 5);
     closeAllPort();
 }
 
@@ -192,7 +208,7 @@ void envoyerFichier() {
     ecrireMessage(fileName);
     sprintf(fullPath, "./Upload/%s", fileName);
     // Ouverture du fichier a envoyer
-    FILE *fps = fopen(fullPath, "r");
+    FILE *fps = fopen(fullPath, "rb");
     if (fps == NULL){
         fprintf(fp1, "%s%s\n", "Ne peux pas ouvrir le fichier suivant :",fileName);
     }
@@ -201,22 +217,22 @@ void envoyerFichier() {
         printf("Début du transfère du fichier\n");
         // Envoie de la commande de début de transfère
         sprintf(str, "/file");
-        envoyerMessage(dS, str);
+        envoyerMessage(dS, str, strlen(str));
         delay(5);
         // Envoie du nom du fichier
-        envoyerMessage(dS, fileName);
+        envoyerMessage(dS, fileName, strlen(str));
         delay(5);
         // Lire et afficher le contenu du fichier
         while (fgets(str, 127, fps) != NULL) {
             str[strlen(str)] = '\0';
-            envoyerMessage(dS, str);
+            envoyerMessage(dS, str, strlen(str));
             delay(5);
         }
     }
     fclose(fps);
     fclose(fp1);
     // Envoyer End Of File
-    envoyerMessage(dS, "/EOF");
+    envoyerMessage(dS, "/EOF", 5);
     printf("Fin du transfère du fichier");
 }
 
@@ -232,7 +248,7 @@ void recevoirFichier(int dSClient,char *buffer) {
     sprintf(filePath, "./Download/%s", buffer);
     printf("Lien du fichier à recevoir : %s \n\n", filePath);
     // Création du fichier portant le nom du fichiers
-    FILE* fichier = fopen(filePath, "w");
+    FILE* fichier = fopen(filePath, "wb");
     if (fichier != NULL) {
         printf("Début de l'écriture dans le fichier\n");
         int endOfFile = 1;
@@ -272,7 +288,7 @@ void traiterCommande(int dSClient,char *buffer) {
         //pthread_create (&thread_fichier, NULL, envoyerFichier, NULL);
         envoyerFichier();
     } else {
-        envoyerMessage(dSClient, buffer);
+        envoyerMessage(dSClient, buffer, strlen(buffer));
     }
 }
 

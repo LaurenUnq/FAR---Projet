@@ -35,7 +35,7 @@ struct arg_struct {
 };
 
 int attendreConnexion(int numClient);
-void envoyerMessage(int numClient,char *buffer);
+void envoyerMessage(int numClient,char *buffer, int tailleBuffer);
 void closeAllPort();
 void recevoirMessage(int numClient,char *bufferReception);
 void init_socket();
@@ -167,10 +167,10 @@ void gestionDecoClient(int numClient) {
 }
 
 /*
- * func envoyerMessage : int, char[] ->
+ * func envoyerMessage : int, char[], int ->
  * Envoie a partir d'un socket, une chaine de charactère un message
  */
-void envoyerMessage(int numClient,char *bufferEnvoie) {
+void envoyerMessage(int numClient,char *bufferEnvoie, int tailleBuffer) {
     if (strlen(bufferEnvoie) > TAILLE_BUFFER) {
         perror("Message trop long");
         closeAllPort();
