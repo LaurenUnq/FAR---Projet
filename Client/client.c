@@ -14,7 +14,6 @@
 // Taille du buffer
 #define TAILLE_BUFFER 4096
 
-
 // Port(s) utilisé par le socket
 int dS;
 
@@ -24,7 +23,7 @@ pthread_t thread_lire;
 
 // Pseudo du client
 char pseudo[TAILLE_BUFFER];
-
+char char_salon[TAILLE_BUFFER];
 void envoyerMessage(int dSClient,char *bufferEnvoie);
 void closeAllPort();
 void recevoirMessage(int dSClient,char *bufferReception);
@@ -35,13 +34,13 @@ void envoyerFichier();
 void recevoirFichier(int dSClient,char *buffer);
 static void * ecrire();
 static void * lire();
-// External functions
 int get_last_tty();
 FILE* new_tty();
+
+// External functions
 void delay(int number_of_seconds);
 
 int main () {
-
     //Definition du protole
     dS = socket(PF_INET,SOCK_STREAM,0);
 
@@ -73,15 +72,34 @@ int main () {
         printf("Donnez votre pseudo (32 char max)\n");
         ecrireMessage(pseudo);
         envoyerMessage(dS, pseudo);
+        printf("Veuillez attendre la confirmation du seveur pour commencer ... \n");
         recevoirMessage(dS, buffer);
     } while ((strcmp(buffer, "Too Long") == 0));
     // Attente de l'accord du serveur pour commencer
-    printf("Veuillez attendre la confirmation du seveur pour commencer ... \n");
     if (strcmp(buffer, "start" ) != 0) {
         perror("Bad start message");
         closeAllPort();
     } else {
         printf("Vous pouvez commencer \n");
+    }
+    recevoirMessage(dS, buffer);
+    while (strcmp (buffer, "endSalon \n") !=0 ){
+    	recevoirMessage(dS,buffer);
+    	delay(20);
+    }
+    printf("choisissez : \n");
+    ecrireMessage(char_salon);
+    printf("char_salon");
+    envoyerMessage(dS,char_salon);
+    recevoirMessage(dS, buffer);
+    //printf("buffer : %s",buffer);
+    while (strcmp (buffer, "OkSalon")!=0){
+    	printf("Serveur plein, rechoisissez");
+    	ecrireMessage(char_salon);
+	    envoyerMessage(dS,char_salon);
+	    printf("client envoyer \n");
+	    recevoirMessage(dS, buffer);
+	    printf("Client serveur \n ");
     }
 
     printf("\n\n");
@@ -113,7 +131,7 @@ void envoyerMessage(int dSClient,char *bufferEnvoie) {
         perror("envoyerMessage");
         closeAllPort();
     } else if (res == 0){
-        perror("Connexion perdu");
+        perror("Connexion perdue");
         closeAllPort();
     } else {
         printf("Message envoyé : %s\n", bufferEnvoie);
@@ -159,6 +177,7 @@ void recevoirMessage(int dSClient,char *bufferReception) {
         closeAllPort();
     } else {
         bufferReception[res] = '\0';
+        printf("Message recu : %s \n",bufferReception);
     }
 }
 
@@ -192,7 +211,7 @@ void envoyerFichier() {
     ecrireMessage(fileName);
     sprintf(fullPath, "./Upload/%s", fileName);
     // Ouverture du fichier a envoyer
-    FILE *fps = fopen(fullPath, "r");
+    FILE *fps = fopen(fullPath, "rb");
     if (fps == NULL){
         fprintf(fp1, "%s%s\n", "Ne peux pas ouvrir le fichier suivant :",fileName);
     }
@@ -219,6 +238,7 @@ void envoyerFichier() {
     envoyerMessage(dS, "/EOF");
     printf("Fin du transfère du fichier");
 }
+
 
 /*
 * func recevoirFichier : ->
@@ -336,47 +356,48 @@ void ecrireMessage(char *msg) {
 
 
 int get_last_tty() {
-  FILE *fp;
-  char path[1035];
-  fp = popen("/bin/ls /dev/pts", "r");
-  if (fp == NULL) {
-    printf("Impossible d'exécuter la commande\n" );
-    exit(1);
-  }
-  int i = INT_MIN;
-  while (fgets(path, sizeof(path)-1, fp) != NULL) {
-    if(strcmp(path,"ptmx")!=0){
-      int tty = atoi(path);
-      if(tty > i) i = tty;
+    FILE *fp;
+    char path[1035];
+    fp = popen("/bin/ls /dev/pts", "r");
+    if (fp == NULL) {
+        printf("Impossible d'exécuter la commande\n" );
+        exit(1);
     }
-  }
+    int i = INT_MIN;
+    while (fgets(path, sizeof(path)-1, fp) != NULL) {
+        if(strcmp(path,"ptmx")!=0){
+            int tty = atoi(path);
+            if(tty > i) i = tty;
+        }
+    }
 
-  pclose(fp);
-  return i;
+    pclose(fp);
+    return i;
 }
 
 
 FILE* new_tty() {
-  pthread_mutex_t the_mutex;
-  pthread_mutex_init(&the_mutex,0);
-  pthread_mutex_lock(&the_mutex);
-  system("gnome-terminal");
-  sleep(1);
-  char *tty_name = ttyname(STDIN_FILENO);
-  int ltty = get_last_tty();
-  char str[2];
-  sprintf(str,"%d",ltty);
-  int i;
-  for(i = strlen(tty_name)-1; i >= 0; i--) {
-    if(tty_name[i] == '/') break;
-  }
-  tty_name[i+1] = '\0';
-  strcat(tty_name,str);
-  FILE *fp = fopen(tty_name,"wb+");
-  pthread_mutex_unlock(&the_mutex);
-  pthread_mutex_destroy(&the_mutex);
-  return fp;
+    pthread_mutex_t the_mutex;
+    pthread_mutex_init(&the_mutex,0);
+    pthread_mutex_lock(&the_mutex);
+    system("gnome-terminal");
+    sleep(1);
+    char *tty_name = ttyname(STDIN_FILENO);
+    int ltty = get_last_tty();
+    char str[2];
+    sprintf(str,"%d",ltty);
+    int i;
+    for(i = strlen(tty_name)-1; i >= 0; i--) {
+      if(tty_name[i] == '/') break;
+    }
+    tty_name[i+1] = '\0';
+    strcat(tty_name,str);
+    FILE *fp = fopen(tty_name,"wb+");
+    pthread_mutex_unlock(&the_mutex);
+    pthread_mutex_destroy(&the_mutex);
+    return fp;
 }
+
 
 // source : https://www.geeksforgeeks.org/time-delay-c/
 void delay(int number_of_seconds) {
